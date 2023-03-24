@@ -1,3 +1,4 @@
 fn main() {
-    println!("Hello, world!");
+    let a = frictune::Tag;
+    a.add_tag();
 }
