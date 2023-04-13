@@ -16,7 +16,7 @@ I'm trying to learn rust, and this is an exercise.
 
 ## TODOs
 
-The project is under **lazy** development. A few features are to be added:
+The project is under <span style="background: red;">lazy</span> development. A few features are to be added:
 
 - [ ] testcases
 
@@ -25,7 +25,7 @@ The project is under **lazy** development. A few features are to be added:
 - [ ] better rust code style (maybe not)
     - [ ] parameter style, (reference instead of move, [] instead of vec)
 
-- [ ] complete CRUD APIs
+- [x] complete CRUD APIs
 
 - [ ] UIs
 
