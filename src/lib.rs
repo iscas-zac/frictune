@@ -1,6 +1,6 @@
 pub mod db;
 pub mod logger;
-use std::{collections::HashMap, fmt::format};
+use std::collections::HashMap;
 
 use futures::executor::block_on;
 use logger::naive::watch;
@@ -75,7 +75,7 @@ impl Tag {
             for row in match db.read(
                 "relationship",
                 &[String::from("*")],
-                &format!("tag1 = {}", tag)
+                &format!("tag1 = '{}'", tag)
             ).await
             {
                 Ok(vrow) => { if vrow.is_empty() {
@@ -134,7 +134,8 @@ impl Tag {
 
     pub async fn link_tags(&self, db: &mut db::crud::Db, target: &str, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
-        let data = [self.name.clone(), target.to_string(), ratio.to_string(), String::from("true")];
+        let data = [self.name.clone(), format!("'{}'", target), ratio.to_string(), String::from("true")];
+        
         match db.update(
             "relationship", 
             &entries,
@@ -156,7 +157,7 @@ impl Tag {
     pub async fn query_relation(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
         match db.read("relationship",
             &[String::from("*")],
-            &format!("tag1 = {} AND tag2 = {}", tag1, tag2)
+            &format!("tag1 = '{}' AND tag2 = '{}'", tag1, tag2)
         ).await {
             Ok(vrow) => { if vrow.is_empty() {
                     None
