@@ -26,7 +26,7 @@ The other functions should speak for themselves.
 
 ## TODOs
 
-The project is under <span style="background: red;">lazy</span> development. A few features are to be added:
+The project is under <font color="red">lazy</font> development. A few features are to be added:
 
 - [ ] testcases
 

@@ -3,6 +3,7 @@ use core::panic;
 use std::error::Error;
 
 
+use futures::executor::block_on;
 use sqlx::{SqliteConnection, Connection, migrate::MigrateDatabase, Executor};
 
 pub struct Db {
@@ -10,6 +11,9 @@ pub struct Db {
 }
 
 impl Db {
+    pub fn sync_new(db_url: &str) -> Result<Db, Box<dyn Error>> {
+        block_on(async { Db::new(db_url).await } )
+    }
     pub async fn new(db_url: &str) -> Result<Db, Box<dyn Error>> {
         if !sqlx::Sqlite::database_exists(&db_url).await? {
             sqlx::Sqlite::create_database(&db_url).await?;

@@ -1,7 +1,9 @@
 pub mod db;
 pub mod logger;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::format};
 
+use futures::executor::block_on;
+use logger::naive::watch;
 use sqlx::Row;
 
 pub struct Tag {
@@ -10,7 +12,25 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub async fn add_tag<'a>(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub fn new(name: &str) -> Self {
+        Tag { name: format!("'{}'", name), desc: None }
+    }
+    /// Add a tag to the database.
+    /// A series of tag/weight pairs can follow to initialize the mutual link weights.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// async {
+    ///     let mut conn = db::crud::Db::new("./sample.db").await.unwrap();
+    ///     let sample = frictune::Tag { name: "sample", desc: None };
+    ///     sample.add_tag(db, HashMap::new()).await;
+    ///     let sample2 = frictune::Tag { name: "sample2", desc: None };
+    ///     sample2.add_tag(db, HashMap::from([(String::from("sample"), 0.4)]));
+    ///     assert_eq!(sample2.query_relation(db).unwrap(), 0.4);
+    /// }
+    /// ```
+    pub async fn add_tag(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         match if let Some(words) = self.desc.clone() {
                 db.create("tags", &[String::from("tag_name"), String::from("desc")], &[self.name.clone(), words]).await
             } else {
@@ -19,14 +39,14 @@ impl Tag {
         {
             Ok(_) => { }
             Err(e) => {
-                logger::tui::warn(e.to_string());
+                logger::naive::warn(e.to_string());
                 if e.as_database_error().unwrap().is_unique_violation() { }
                 else { panic!() }
             },
         }
 
         for (k, v) in weights {
-            logger::tui::watch(self.link_tags(db, &Tag { name: k, desc: None }, v).await);
+            logger::naive::watch(self.link_tags(db, &k, v).await);
             self.auto_update_links(db).await;
         }
 
@@ -34,6 +54,12 @@ impl Tag {
         Ok(sqlx::sqlite::SqliteQueryResult::default())
     }
 
+    /// The non-async version of `add_tag`
+    pub fn add_sync(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) {
+        block_on(async { watch(self.add_tag(db, weights).await) });
+    }
+
+    /// Updates the autonomous links between tags
     pub async fn auto_update_links(&self, db: &mut db::crud::Db) {
         let affected_tags: Vec<(String, f32)> = match db.read(
             "relationship",
@@ -42,7 +68,7 @@ impl Tag {
         ).await {
             Ok(vrow) => vrow.iter().map(|row|
                 (row.get::<String, usize>(0), row.get::<f32, usize>(1))).collect(),
-            Err(e) => { logger::tui::warn(e.to_string()); panic!() }
+            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         };
 
         for (tag, weight) in affected_tags {
@@ -58,7 +84,7 @@ impl Tag {
                         vrow
                     }
                 }
-                Err(e) => { logger::tui::warn(e.to_string()); continue }
+                Err(e) => { logger::naive::warn(e.to_string()); continue }
             } {
                 let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
                 let data = [
@@ -66,7 +92,7 @@ impl Tag {
                     row.get::<String, usize>(1), 
                     (row.get::<f32, usize>(2) * weight).to_string(),
                     String::from("false")];
-                logger::tui::watch(db.update(
+                logger::naive::watch(db.update(
                     "relationship", 
                     &entries,
                     &data,
@@ -86,12 +112,12 @@ impl Tag {
         ).await {
             Ok(vrow) => vrow.into_iter().map(|row|
                 row.get::<String, usize>(0)),
-            Err(e) => { logger::tui::warn(e.to_string()); panic!() }
+            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         } { Tag { name, desc: None }.auto_update_links(db).await; }
     }
 
     pub async fn force_update_all_links(db: &mut db::crud::Db) {
-        logger::tui::watch(db.delete("relationship", "is_origin", "false").await);
+        logger::naive::watch(db.delete("relationship", "is_origin", "false").await);
         Tag::update_all_links(db).await;
     }
 
@@ -102,10 +128,14 @@ impl Tag {
         else { res1 }
     }
 
-    pub async fn link_tags(&self, db: &mut db::crud::Db, target: &Tag, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub fn rem_sync(&self, db: &mut db::crud::Db) {
+        block_on(async { watch(self.remove_tag(db).await) });
+    }
+
+    pub async fn link_tags(&self, db: &mut db::crud::Db, target: &str, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
-        let data = [self.name.clone(), target.name.clone(), ratio.to_string(), String::from("true")];
-        db.update(
+        let data = [self.name.clone(), target.to_string(), ratio.to_string(), String::from("true")];
+        match db.update(
             "relationship", 
             &entries,
             &data,
@@ -113,6 +143,14 @@ impl Tag {
             &data[2..],
             "true"
         ).await
+        {
+            Ok(res) => { self.auto_update_links(db).await; Ok(res) },
+            Err(e) => Err(e)
+        }
+    }
+
+    pub fn link_sync(&self, db: &mut db::crud::Db, target: &str, ratio: f32) {
+        block_on(async { watch(self.link_tags(db, target, ratio).await) });
     }
 
     pub async fn query_relation(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
@@ -123,11 +161,15 @@ impl Tag {
             Ok(vrow) => { if vrow.is_empty() {
                     None
                 } else {
-                    if vrow.len() > 1 { logger::tui::warn(String::from("more than one queryed")); panic!() }
+                    if vrow.len() > 1 { logger::naive::warn(String::from("more than one queryed")); panic!() }
                     vrow.get(0).map(|row| row.get::<f32, usize>(2))
                 }
             }
-            Err(e) => { logger::tui::warn(e.to_string()); panic!() }
+            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         }
+    }
+
+    pub fn query_sync(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
+        block_on(async { Tag::query_relation(db, tag1, tag2).await })
     }
 }
