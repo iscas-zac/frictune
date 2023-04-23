@@ -11,6 +11,6 @@ impl ::std::default::Default for Conf {
 
 /// Get a configuration value from the file.
 pub fn read_config() -> Result<Conf, confy::ConfyError> {
-    let cfg: Conf = confy::load("./settings.toml", None)?;
+    let cfg: Conf = confy::load("./settings/settings.toml", None)?;
     Ok(cfg)
 }

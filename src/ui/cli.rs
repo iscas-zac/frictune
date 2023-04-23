@@ -7,7 +7,6 @@ use clap::Subcommand;
 #[derive(Parser)]
 #[command(author, version, about)]
 struct Cli {
-    /// 
     #[command(subcommand)]
     command: Option<Commands>,
 }

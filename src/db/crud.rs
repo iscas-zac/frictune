@@ -60,10 +60,10 @@ impl Db {
             .await
     }
 
-    pub async fn read(&mut self, table: &str, entry: &[String], cond: &str) -> Result<Vec<sqlx::sqlite::SqliteRow>, sqlx::Error> {
+    pub async fn read(&mut self, table: &str, entry: &[String], cond: &str, opts: &str) -> Result<Vec<sqlx::sqlite::SqliteRow>, sqlx::Error> {
         sqlx::query(
             &format!("SELECT {} FROM {}
-                WHERE {}", entry.join(", "), table, cond)
+                WHERE {} {}", entry.join(", "), table, cond, opts)
         ).fetch_all(&mut self.conn)
             .await
     }

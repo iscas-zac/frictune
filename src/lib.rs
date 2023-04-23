@@ -32,7 +32,7 @@ impl Tag {
     /// ```
     pub async fn add_tag(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         match if let Some(words) = self.desc.clone() {
-                db.create("tags", &[String::from("tag_name"), String::from("desc")], &[self.name.clone(), words]).await
+                db.create("tags", &[String::from("tag_name"), String::from("info")], &[self.name.clone(), words]).await
             } else {
                 db.create("tags", &[String::from("tag_name")], &[self.name.clone()]).await
             }
@@ -64,7 +64,8 @@ impl Tag {
         let affected_tags: Vec<(String, f32)> = match db.read(
             "relationship",
             &["tag2".to_string(), "weight".to_string()],
-            &format!("tag1 = {}", self.name)
+            &format!("tag1 = {}", self.name),
+            ""
         ).await {
             Ok(vrow) => vrow.iter().map(|row|
                 (row.get::<String, usize>(0), row.get::<f32, usize>(1))).collect(),
@@ -75,7 +76,8 @@ impl Tag {
             for row in match db.read(
                 "relationship",
                 &[String::from("*")],
-                &format!("tag1 = '{}'", tag)
+                &format!("tag1 = '{}'", tag),
+                ""
             ).await
             {
                 Ok(vrow) => { if vrow.is_empty() {
@@ -89,7 +91,7 @@ impl Tag {
                 let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
                 let data = [
                     self.name.clone(),
-                    row.get::<String, usize>(1), 
+                    format!("'{}'", row.get::<String, usize>(1)), 
                     (row.get::<f32, usize>(2) * weight).to_string(),
                     String::from("false")];
                 logger::naive::watch(db.update(
@@ -108,7 +110,8 @@ impl Tag {
         for name in match db.read(
             "tags",
             &["tag_name".to_string()],
-            &format!("true")
+            &format!("true"),
+            ""
         ).await {
             Ok(vrow) => vrow.into_iter().map(|row|
                 row.get::<String, usize>(0)),
@@ -157,7 +160,8 @@ impl Tag {
     pub async fn query_relation(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
         match db.read("relationship",
             &[String::from("*")],
-            &format!("tag1 = '{}' AND tag2 = '{}'", tag1, tag2)
+            &format!("tag1 = '{}' AND tag2 = '{}'", tag1, tag2),
+            ""
         ).await {
             Ok(vrow) => { if vrow.is_empty() {
                     None
@@ -172,5 +176,48 @@ impl Tag {
 
     pub fn query_sync(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
         block_on(async { Tag::query_relation(db, tag1, tag2).await })
+    }
+
+    pub async fn query_top_related(&self, db: &mut db::crud::Db) -> Vec<String> {
+        match db.read(
+            "relationship",
+            &["tag2".into()],
+            &format!("tag1 = {}", self.name),
+            "ORDER BY weight"
+        ).await {
+            Ok(vrow) => { if vrow.is_empty() {
+                    Vec::new()
+                } else {
+                    vrow.iter().map(|row| row.get::<String, usize>(0)).collect()
+                }
+            }
+            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+        }
+    }
+
+    pub fn qtr_sync(&self, db: &mut db::crud::Db) -> Vec<String> {
+        block_on(async { self.query_top_related(db).await })
+    }
+
+    pub async fn query_desc(&self, db: &mut db::crud::Db) -> Option<String> {
+        match db.read(
+            "tags", 
+            &[String::from("info")], 
+            &format!("tag_name = {}", self.name),
+            ""
+        ).await {
+            Ok(vrow) => { if vrow.is_empty() {
+                    None
+                } else {
+                    if vrow.len() > 1 { logger::naive::warn(String::from("more than one queryed")); panic!() }
+                    vrow.get(0).map(|row| row.get::<String, usize>(0))
+                }
+            }
+            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+        }
+    }
+
+    pub fn qd_sync(&self, db: &mut db::crud::Db) -> Option<String> {
+        block_on(async { self.query_desc(db).await })
     }
 }
