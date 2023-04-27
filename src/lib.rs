@@ -61,6 +61,7 @@ impl Tag {
 
     /// Updates the autonomous links between tags
     pub async fn auto_update_links(&self, db: &mut db::crud::Db) {
+        // TODO: a reverse-way propagation
         let affected_tags: Vec<(String, f32)> = match db.read(
             "relationship",
             &["tag2".to_string(), "weight".to_string()],
