@@ -48,19 +48,19 @@ fn handle_all(global_template: &str,
         let desc_opt = main_tag.desc.clone().unwrap_or_default();
         let desc = desc_opt.trim_matches('\'');
         let re = regex::Regex::new(
-            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*{}.*\\}}\\}}",
+            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*{}(?s:.)*\\}}\\}}",
                 regex::escape(name))
             ).unwrap();
-        let hyperlink = if desc.contains("https")
+        let hyperlink = if desc.contains("http")
             { format!("<a href=\"{}\">{}</a>", desc, name) } else { name.into() };
         content = re.replace(&content, &format!("<div id=\"tag\">{}\
         {{{{#each {}}}}}{{{{#with this}}}}\
-            {{{{#if desc}}}}\
+            {{{{#if desc}}}}
                 <div class=\"bubble\"><a href={{{{desc}}}}>{{{{name}}}}</a></div>\
-            {{{{else}}}}\
+            {{{{else}}}}
                 <div class=\"bubble\">{{{{name}}}}</div>\
-            {{{{/if}}}}
-{{{{/with}}}}{{{{/each}}}}</div>",
+            {{{{/if}}}}\
+        {{{{/with}}}}{{{{/each}}}}</div>",
             hyperlink,
             name
         )).into();
@@ -90,9 +90,11 @@ fn construct_json_from_database(json: &mut serde_json::Value, tags: Vec<frictune
         json[main_tag.name.trim_matches('\'')] = main_tag.qtr_sync(&mut conn)
             .iter()
             .map(|s| {
+                println!("{}", s);
+                let desc = frictune::Tag::new(s).qd_sync(&mut conn).unwrap_or("".into());
                 serde_json::json!({
                     "name": s,
-                    "desc": frictune::Tag::new(s).qd_sync(&mut conn),
+                    "desc": desc,
                 })
             })
             .collect();
@@ -150,7 +152,7 @@ fn update_database(db_uri: &str, leader: &frictune::Tag, trailers: &[(frictune::
 
     leader.add_sync(&mut conn, trailers
         .into_iter()
-        .map(|(tag, weight)| (tag.name.to_owned(), weight.to_owned()))
+        .map(|(tag, weight)| (tag.name.trim_matches('\'').to_owned(), weight.to_owned()))
         .collect()
     );
 }
