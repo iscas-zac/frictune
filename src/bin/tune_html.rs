@@ -10,8 +10,39 @@ use pest::Parser;
 #[grammar = "./settings/tag_seg.pest"]
 pub struct TagParser;
 
+/// As something like `{{"Hacker News"}}` will generate a
+/// `{{#each Hacker News}}` in the Handlebars file, I replace
+/// the space with this symbol
 const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 
+/// The program read something in a `temp.txt` file like
+/// ```
+/// **any text** {{foo "https://example.com" (bar 0.5)}} **other text**
+/// ```
+/// and transform it into an .html file.
+/// The rules of the format are as follows.
+/// 1. every paragraph separated by two newlines are
+///     embraced with `<p></p>`;
+/// 2. every paragraph has zero or more `{{TEXT}}` and other plain
+///     html things.
+/// 3. the TEXT has a leading word, which can be double quoted
+///     and have blanks in it, like `"Hacker News"`, or simply
+///     a word without blanks.
+/// 4. the TEXT has an optional second word, which usually is
+///     a `http` website link.
+/// 5. the TEXT has zero or more `(BRACED_TEXT)` parts.
+/// 6. the BRACED_TEXT has a leading word, an optional second
+///     word, and an optional weight. If the weight doesn't exist,
+///     it will be set as 1.0 in the database.
+/// The leading words are recorded in the database with
+/// the braced leading words with the given weight, and then
+/// in the final html, the top weighted things will be following
+/// the leading words (which is in a `<div id="tag">`)
+/// in a `<div class="bubble">` element. If the optional second
+/// words are set and are http links, they will be hyperlinked.
+/// 
+/// The whole stuff will be fit into a template in the file
+/// `./template.hbs`.
 fn main() {
     match handle_all("./template.hbs",
         "./temp.txt",
@@ -23,6 +54,10 @@ fn main() {
     
 }
 
+/// *for later refactor.*
+/// This function now uses `pest` to parse the original file
+/// and submit the contents to the database, and use `handlebars`
+/// to read from the database and replace the tag 
 fn handle_all(global_template: &str,
         lines: &str,
         db_conn: &str,
@@ -41,6 +76,7 @@ fn handle_all(global_template: &str,
 
     let tags = extract_tags(&content, db_conn);
 
+    // replace the self-defined tag with a `handlebars` tag
     for main_tag in tags.iter() {
         let name = main_tag.name.trim_matches('\'');
         let desc_opt = main_tag.desc.clone().unwrap_or_default();
@@ -67,6 +103,7 @@ fn handle_all(global_template: &str,
     println!("{}", content);
     reg.register_template_string("content", content)?;
 
+    // construct the json from database
     let mut env_json = serde_json::json!({
         "date": chrono::Local::now()
             .date_naive()
@@ -82,6 +119,8 @@ fn handle_all(global_template: &str,
     Ok(())
 }
 
+/// this function has a strong relation with the `pest` parser.
+/// If the format is changed, both need to be changed.
 fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
     let pairs = TagParser::parse(Rule::final_seg, content)
     .unwrap_or_else(|e| panic!("{}", e));
@@ -158,6 +197,9 @@ fn read_content(name: &str) -> Result<String, std::io::Error> {
     Ok(buf)
 }
 
+/// *for later minor refactor*.
+/// This need to be in the `Tag`struct and may merge
+/// with `Tag::add_tag`
 fn update_database(db_uri: &str, leader: &frictune::Tag, trailers: &[(frictune::Tag, f32)]) {
     let mut conn = frictune::db::crud::Db::sync_new(db_uri).unwrap();
     

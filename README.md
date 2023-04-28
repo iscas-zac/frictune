@@ -14,13 +14,17 @@
 
 I'm trying to learn rust, and this is an exercise.
 
-## the current APIs
+## current APIs
 
 `pub fn add_sync(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>`: add a tag to the database, with an option to initialize the links with the `weight` parameter.
 
 `pub async fn update_all_links(db: &mut db::crud::Db)`: update the links with a formula. Some link weights are designated by the user, the others will be inferred. (effectiveness in progress)
 
 The other functions should speak for themselves.
+
+## HTML renderer
+
+There is a second binary built with `cargo run --bin tune_html`.It will be used more as the main functionalities are not complete.
 
 ## TODOs
 
@@ -47,6 +51,7 @@ The project is under **lazy** development. A few features are to be added:
 - [ ] UIs
     - [x] Command Line Interface
         - [ ] REPL
+    - [x] render to static HTML
 
 - [ ] automated workflows (with file folders / websites)
 

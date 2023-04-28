@@ -1,3 +1,3 @@
 mimik
 
-{{"transformer from scratch HN" "https://news.ycombinator.com/item?id=35697627" ("Hacker News" 0.8) (transformer "https://arxiv.org/abs/1706.03762" 0.9) (resource 0.8) (20230427) (review 0.8)}}关于 transformer 应该知道的一切，我可能想做一期相关的视频。
+试了下{{pest "https://pest.rs/" (parser "https://en.wikipedia.org/wiki/Parsing" 0.8) (tool 0.7) (20230428)}}来作为这个页面从简单的纯文本解析到 HTML 的工具。本来一直在用 <a href="https://github.com/sunng87/handlebars-rust">Handlebars</a> 作为一体化工具，但是还是不太会用，再加上在原始文件总要加个辅助函数的名字来指示“这里需要解析”，于是愤而直接用它的解析工具先过一段解析。当然现在的代码仍然有些臃肿，不知道能否进一步简化。
