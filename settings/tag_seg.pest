@@ -1,0 +1,16 @@
+number            = @{
+    "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+WHITESPACE        = _{ WHITE_SPACE }
+no_bracket_char   =  { (!("{{" | "}}" | WHITE_SPACE) ~ ANY) }
+leading_word      = @{ ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | (no_bracket_char+) }
+desc_leading_word = @{ leading_word }
+no_brace_char     =  { (!("{{" | "}}" | WHITE_SPACE | "(" | ")") ~ ANY) }
+inner_word        = @{ ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | (no_brace_char+) }
+desc_inner_word   = @{ inner_word }
+brace             =  {
+    "(" ~ inner_word ~ (number | desc_inner_word){0, 2} ~ ")"
+}
+single_tag        =  { "{{" ~ leading_word ~ desc_leading_word? ~ brace* ~ "}}" }
+no_interest       =  { (!("{{" | "}}") ~ ANY)+ }
+final_seg         =  { (no_interest | single_tag)* }

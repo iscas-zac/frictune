@@ -1,6 +1,16 @@
 use std::{io::{BufReader, Read}, fs::File, collections::HashMap};
-use handlebars::{Handlebars, Path, handlebars_helper};
+use handlebars::Handlebars;
 
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+use pest::Parser;
+
+#[derive(Parser)]
+#[grammar = "./settings/tag_seg.pest"]
+pub struct TagParser;
+
+const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 
 fn main() {
     match handle_all("./template.hbs",
@@ -28,29 +38,62 @@ fn handle_all(global_template: &str,
         .map(|s| format!("<p>{}</p>", s.trim()))
         .collect::<Vec<_>>()
         .join("\n");
-    reg.register_partial("content", &content)?;
-    
-    let tags: Vec<_> = reg.get_template("content").unwrap()
-        .elements
-        .iter()
-        .filter_map(|e| {
-            match e {
-                handlebars::template::TemplateElement::Expression(ht) => {
-                    let main_tag = expand_expr_parse(db_conn, *ht.to_owned());
-                    Some(main_tag)
-                },
-                _ => None,
-            }
-        }).collect();
+
+    let pairs = TagParser::parse(Rule::final_seg, &content)
+        .unwrap_or_else(|e| panic!("{}", e));
         
+    let tags: Vec<_> = pairs.flat_map(|pair| {
+        pair.into_inner()
+            .filter(|ip| matches!(ip.as_rule(), Rule::single_tag))
+            .map(|pair| {
+                let mut main_tag = frictune::Tag { name: "''".into(), desc: None };
+                let mut trailers = vec![];
+                for inner in pair.into_inner() {
+                    match inner.as_rule() {
+                        Rule::leading_word => main_tag.name = format!("'{}'", inner.as_str().trim_matches('\"')),
+                        Rule::desc_leading_word => {
+                            let desc = inner.as_str().trim_matches('\"');
+                            if !desc.is_empty() {
+                                main_tag.desc = Some(format!("'{}'", desc));
+                            }
+                        },
+                        Rule::brace => {
+                            let mut trailing_tag = frictune::Tag { name: "''".into(), desc: None };
+                            let mut num = 1.0;
+                            for brace_inner in inner.into_inner() {
+                                match brace_inner.as_rule() {
+                                    Rule::inner_word => trailing_tag.name = format!("'{}'", brace_inner.as_str().trim_matches('\"')),
+                                    Rule::desc_inner_word => {
+                                        let desc = brace_inner.as_str().trim_matches('\"');
+                                        if !desc.is_empty() {
+                                            trailing_tag.desc = Some(format!("'{}'", desc));
+                                        }
+                                    },
+                                    Rule::number => num = brace_inner.as_str().parse::<f64>().unwrap(),
+                                    _ => { frictune::logger::naive::rupt(&format!("brace_inner is {}", brace_inner.as_str())); }
+                                }
+                            }
+                            if !trailing_tag.name.contains("''") {
+                                trailers.push((trailing_tag, num as f32));
+                            }
+                        },
+                        _ => { frictune::logger::naive::rupt(&format!("inner is {}", inner.as_str())); }
+                    }
+                }
+                update_database(db_conn, &main_tag, &trailers);
+                main_tag
+            })
+    }).collect();
+
     for main_tag in tags.iter() {
         let name = main_tag.name.trim_matches('\'');
         let desc_opt = main_tag.desc.clone().unwrap_or_default();
         let desc = desc_opt.trim_matches('\'');
         let re = regex::Regex::new(
-            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*{}(?s:.)*\\}}\\}}",
+            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*\"?{}\"?(?s:.)*\\}}\\}}",
                 regex::escape(name))
             ).unwrap();
+        println!("{}", re);
         let hyperlink = if desc.contains("http")
             { format!("<a href=\"{}\">{}</a>", desc, name) } else { name.into() };
         content = re.replace(&content, &format!("<div id=\"tag\">{}\
@@ -62,7 +105,7 @@ fn handle_all(global_template: &str,
             {{{{/if}}}}\
         {{{{/with}}}}{{{{/each}}}}</div>",
             hyperlink,
-            name
+            name.replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)
         )).into();
     }
     println!("{}", content);
@@ -87,7 +130,7 @@ fn construct_json_from_database(json: &mut serde_json::Value, tags: Vec<frictune
     for main_tag in tags.iter() {
         let mut conn = frictune::db::crud::Db::sync_new(db_conn).unwrap();
 
-        json[main_tag.name.trim_matches('\'')] = main_tag.qtr_sync(&mut conn)
+        json[main_tag.name.trim_matches('\'').replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)] = main_tag.qtr_sync(&mut conn)
             .iter()
             .map(|s| {
                 println!("{}", s);
@@ -110,39 +153,6 @@ fn read_content(name: &str) -> Result<String, std::io::Error> {
     Ok(buf)
 }
 
-fn expand_expr_parse(db_uri: &str, tple: handlebars::template::HelperTemplate) -> frictune::Tag {
-    let main_tag = frictune::Tag {
-        name: format!("'{}'", tple.name.as_name().unwrap_or_default()),
-        desc: match &tple.params[..] {
-            [handlebars::template::Parameter::Literal(serde_json::value::Value::String(s)), ..] => Some(format!("'{}'", s)),
-            _ => None,
-        }
-    };
-    let vparam: Vec<(_, f32)> = tple.params
-        .iter()
-        .filter_map(|p| match p {
-            handlebars::template::Parameter::Subexpression(elem) => {
-                let title = elem.name();
-                let empty_vec: Vec<handlebars::template::Parameter> = vec![];
-                let params = elem.params().unwrap_or(&empty_vec);
-                match &params[..] {
-                    [
-                        handlebars::template::Parameter::Literal(serde_json::value::Value::String(s)),
-                        handlebars::template::Parameter::Literal(serde_json::value::Value::Number(n)),
-                    ] if n.is_f64() => Some((frictune::Tag { name: format!("'{}'", title), desc: Some(format!("'{}'", s)) }, n.as_f64().unwrap() as f32)),
-                    [
-                        handlebars::template::Parameter::Literal(serde_json::value::Value::Number(n)),
-                    ] if n.is_f64() => Some((frictune::Tag { name: format!("'{}'", title), desc: None }, n.as_f64().unwrap() as f32)),
-                    [] => Some((frictune::Tag { name: format!("'{}'", title), desc: None }, 1.0)),
-                    _ => { frictune::logger::lib_logger::de!("{:?} does not fit parse rule", params); panic!() },
-                }
-            },
-            _ => { None },
-        }).collect();
-    update_database(db_uri, &main_tag, &vparam[..]);
-    main_tag
-}
-
 fn update_database(db_uri: &str, leader: &frictune::Tag, trailers: &[(frictune::Tag, f32)]) {
     let mut conn = frictune::db::crud::Db::sync_new(db_uri).unwrap();
     
@@ -155,29 +165,4 @@ fn update_database(db_uri: &str, leader: &frictune::Tag, trailers: &[(frictune::
         .map(|(tag, weight)| (tag.name.trim_matches('\'').to_owned(), weight.to_owned()))
         .collect()
     );
-}
-
-fn get_bubble(name: &str, conn: &mut frictune::db::crud::Db) -> String {
-    match frictune::Tag::new(name).qd_sync(conn) {
-        Some(desc) if desc.contains("https") => format!(
-            "<div class=\"bubble\">
-                <a href={}>{}</a>
-            </div>", desc, name),
-        Some(_) | None => format!(
-            "<div class=\"bubble\">{}</div>", name)
-    }
-}
-
-fn fill_tag(main_tag: &frictune::Tag, conn: &mut frictune::db::crud::Db) -> String {
-    let bubbles = main_tag.clone().qtr_sync(conn)
-        .iter()
-        .map(|s| get_bubble(s, conn))
-        .collect::<Vec<_>>().join("\n");
-    format!("<div id=\"tag\">
-        <a href=\"{}\">{}</a>{}
-    </div>",
-        main_tag.desc.clone().unwrap_or_default(),
-        main_tag.name,
-        bubbles,
-    )
 }
