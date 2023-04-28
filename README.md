@@ -26,6 +26,10 @@ The other functions should speak for themselves.
 
 There is a second binary built with `cargo run --bin tune_html`.It will be used more as the main functionalities are not complete.
 
+It read lines from the `./temp.txt`, store the tags in `./tags.db`,
+render it into the `./template.hbs` template, and output into a
+`./b.html` file. The names are only for temporary use.
+
 ## TODOs
 
 ### Next step

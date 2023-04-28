@@ -21,6 +21,7 @@ const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 /// ```
 /// and transform it into an .html file.
 /// The rules of the format are as follows.
+/// 0. the first line will be set as the title.
 /// 1. every paragraph separated by two newlines are
 ///     embraced with `<p></p>`;
 /// 2. every paragraph has zero or more `{{TEXT}}` and other plain
