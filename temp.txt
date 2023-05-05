@@ -1,3 +1,5 @@
 mimik
 
-试了下{{pest "https://pest.rs/" (parser "https://en.wikipedia.org/wiki/Parsing" 0.8) (tool 0.7) (20230428)}}来作为这个页面从简单的纯文本解析到 HTML 的工具。本来一直在用 <a href="https://github.com/sunng87/handlebars-rust">Handlebars</a> 作为一体化工具，但是还是不太会用，再加上在原始文件总要加个辅助函数的名字来指示“这里需要解析”，于是愤而直接用它的解析工具先过一段解析。当然现在的代码仍然有些臃肿，不知道能否进一步简化。
+在 GitHub 上看到了 {{ lazygit "https://github.com/jesseduffield/lazygit" (git "https://git-scm.com/" 0.8) ("user interface" 0.8) (GitHub 0.8) (20230504) }}，看了一下是 GitHub 上非官方 git 扩展中最多 star 的，安装了一个试试看。
+
+在阮一峰周刊上看到了 {{ run-out-of-ml-data "https://epochai.org/blog/will-we-run-out-of-ml-data-evidence-from-projecting-dataset" (creative 0.7) ("machine learning" "https://en.wikipedia.org/wiki/Machine_learning" 0.8) (ruanyf 0.8) (20230505) ("academic paper" 0.8) }}，认为几年至几十年后制约大模型发展的会是数据量，这倒是个新奇的思路。

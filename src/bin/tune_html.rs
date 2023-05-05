@@ -83,10 +83,10 @@ fn handle_all(global_template: &str,
         let desc_opt = main_tag.desc.clone().unwrap_or_default();
         let desc = desc_opt.trim_matches('\'');
         let re = regex::Regex::new(
-            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*\"?{}\"?(?s:.)*\\}}\\}}",
+            &format!("\\{{\\{{[\\t\\n\\v\\f\\r ]*\"?{}\"?(?s:.)*?\\}}\\}}",
                 regex::escape(name))
             ).unwrap();
-        println!("{}", re);
+        //println!("{}", re);
         let hyperlink = if desc.contains("http")
             { format!("<a href=\"{}\">{}</a>", desc, name) } else { name.into() };
         content = re.replace(&content, &format!("<div id=\"tag\">{}\
