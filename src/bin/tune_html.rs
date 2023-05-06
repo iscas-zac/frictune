@@ -38,8 +38,8 @@ const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 /// The leading words are recorded in the database with
 /// the braced leading words with the given weight, and then
 /// in the final html, the top weighted things will be following
-/// the leading words (which is in a `<div id="tag">`)
-/// in a `<div class="bubble">` element. If the optional second
+/// the leading words (which is in a `<span id="tag">`)
+/// in a `<span class="bubble">` element. If the optional second
 /// words are set and are http links, they will be hyperlinked.
 /// 
 /// The whole stuff will be fit into a template in the file
@@ -89,14 +89,14 @@ fn handle_all(global_template: &str,
         //println!("{}", re);
         let hyperlink = if desc.contains("http")
             { format!("<a href=\"{}\">{}</a>", desc, name) } else { name.into() };
-        content = re.replace(&content, &format!("<div id=\"tag\">{}\
+        content = re.replace(&content, &format!("<span id=\"tag\">{}\
         {{{{#each {}}}}}{{{{#with this}}}}\
             {{{{#if desc}}}}
-                <div class=\"bubble\"><a href={{{{desc}}}}>{{{{name}}}}</a></div>\
+                <span class=\"bubble\"><a href={{{{desc}}}}>{{{{name}}}}</a></span>\
             {{{{else}}}}
-                <div class=\"bubble\">{{{{name}}}}</div>\
+                <span class=\"bubble\">{{{{name}}}}</span>\
             {{{{/if}}}}\
-        {{{{/with}}}}{{{{/each}}}}</div>",
+        {{{{/with}}}}{{{{/each}}}}</span>",
             hyperlink,
             name.replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)
         )).into();
