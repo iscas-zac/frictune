@@ -37,7 +37,7 @@ enum Commands {
     Repl,
 }
 
-pub fn parse_args(db_conn: &mut frictune::db::crud::Db) {
+pub fn parse_args(db_conn: &mut frictune::db::crud::Database) {
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::Add { name, tags, weights }) => {
@@ -51,7 +51,7 @@ pub fn parse_args(db_conn: &mut frictune::db::crud::Db) {
 
             else {
                 frictune::logger::naive::warn("links should be <name, weight> pairs.".to_owned());
-                Tag::new(name).add_sync(db_conn, HashMap::new());
+                Tag::new(name).add_sync(db_conn, HashMap::new() as HashMap<String, f32>);
             }
             
         },

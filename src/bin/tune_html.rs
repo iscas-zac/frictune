@@ -123,6 +123,13 @@ fn handle_all(global_template: &str,
 /// this function has a strong relation with the `pest` parser.
 /// If the format is changed, both need to be changed.
 fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
+    //TODO: let this init only once
+    // let mut conn = match frictune::db::crud::Database::sync_new(db_conn)
+    // {
+    //     Ok(conn) => std::rc::Rc::new(conn),
+    //     Err(e) => frictune::logger::naive::rupt(e.to_string().as_str()),
+    // };
+
     let pairs = TagParser::parse(Rule::final_seg, content)
     .unwrap_or_else(|e| panic!("{}", e));
         
@@ -164,16 +171,21 @@ fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
                     _ => { frictune::logger::naive::rupt(&format!("inner is {}", inner.as_str())); }
                 }
             }
-            update_database(db_conn, &main_tag, &trailers);
+
+            main_tag.add_sync(&mut frictune::db::crud::Database::sync_new(db_conn).unwrap(), trailers
+                .into_iter()
+                .map(|(tag, weight)|
+                    (tag, weight)
+                ).collect::<HashMap<_, f32>>());
             main_tag
         })
-        }).collect();
+    }).collect();
     tags
 }
 
 fn construct_json_from_database(json: &mut serde_json::Value, tags: Vec<frictune::Tag>, db_conn: &str) {
     for main_tag in tags.iter() {
-        let mut conn = frictune::db::crud::Db::sync_new(db_conn).unwrap();
+        let mut conn = frictune::db::crud::Database::sync_new(db_conn).unwrap();
 
         json[main_tag.name.trim_matches('\'').replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)] = main_tag.qtr_sync(&mut conn)
             .iter()
@@ -196,21 +208,4 @@ fn read_content(name: &str) -> Result<String, std::io::Error> {
     reader.read_to_string(&mut buf)?;
 
     Ok(buf)
-}
-
-/// *for later minor refactor*.
-/// This need to be in the `Tag`struct and may merge
-/// with `Tag::add_tag`
-fn update_database(db_uri: &str, leader: &frictune::Tag, trailers: &[(frictune::Tag, f32)]) {
-    let mut conn = frictune::db::crud::Db::sync_new(db_uri).unwrap();
-    
-    for (tag, _) in trailers.iter() {
-        tag.add_sync(&mut conn, HashMap::new());
-    }
-
-    leader.add_sync(&mut conn, trailers
-        .into_iter()
-        .map(|(tag, weight)| (tag.name.trim_matches('\'').to_owned(), weight.to_owned()))
-        .collect()
-    );
 }

@@ -6,15 +6,29 @@ use std::error::Error;
 use futures::executor::block_on;
 use sqlx::{SqliteConnection, Connection, migrate::MigrateDatabase, Executor};
 
-pub struct Db {
+pub struct Database {
     conn: SqliteConnection,
 }
 
-impl Db {
-    pub fn sync_new(db_url: &str) -> Result<Db, Box<dyn Error>> {
-        block_on(async { Db::new(db_url).await } )
+pub trait DatabaseError: Error {
+    fn print(&self) {
+        crate::logger::naive::warn(self.to_string());
     }
-    pub async fn new(db_url: &str) -> Result<Db, Box<dyn Error>> {
+}
+
+pub trait DatabaseResult {
+
+}
+
+impl DatabaseError for sqlx::Error {
+
+}
+
+impl Database {
+    pub fn sync_new(db_url: &str) -> Result<Database, Box<dyn Error>> {
+        block_on(async { Database::new(db_url).await } )
+    }
+    pub async fn new(db_url: &str) -> Result<Database, Box<dyn Error>> {
         if !sqlx::Sqlite::database_exists(&db_url).await? {
             sqlx::Sqlite::create_database(&db_url).await?;
         }
@@ -40,7 +54,7 @@ impl Db {
         match conn
             .execute(query)
             .await {
-            Ok(_) => Ok(Db { conn }),
+            Ok(_) => Ok(Database { conn }),
             Err(e) => { print!("err, {}", e); panic!() }
         }
     }

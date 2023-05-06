@@ -6,9 +6,45 @@ use futures::executor::block_on;
 use logger::naive::watch;
 use sqlx::Row;
 
+// TODO: remove this by change the add_tag signature
+#[derive(PartialEq, Eq, Hash)]
 pub struct Tag {
     pub name: String,
     pub desc: Option<String>,
+}
+
+pub trait MakeTag: Eq + PartialEq {
+    fn get_name(&self) -> String;
+    fn get_desc(&self) -> Option<String>;
+    fn get_tag(&self) -> Tag;
+}
+
+impl MakeTag for Tag {
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get_desc(&self) -> Option<String> {
+        self.desc.clone()
+    }
+
+    fn get_tag(&self) -> Tag {
+        Tag { name: self.get_name(), desc: self.get_desc() }
+    }
+}
+
+impl MakeTag for String {
+    fn get_name(&self) -> String {
+        format!("'{}'", self)
+    }
+
+    fn get_desc(&self) -> Option<String> {
+        None
+    }
+
+    fn get_tag(&self) -> Tag {
+        Tag { name: format!("'{}'", self), desc: None }
+    }
 }
 
 impl Tag {
@@ -30,7 +66,7 @@ impl Tag {
     ///     assert_eq!(sample2.query_relation(db).unwrap(), 0.4);
     /// }
     /// ```
-    pub async fn add_tag(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: HashMap<T, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         match if let Some(words) = self.desc.clone() {
                 db.create("tags", &[String::from("tag_name"), String::from("info")], &[self.name.clone(), words]).await
             } else {
@@ -45,8 +81,21 @@ impl Tag {
             },
         }
 
-        for (k, v) in weights {
-            logger::naive::watch(self.link_tags(db, &k, v).await);
+        for (k, v) in name_weight_pairs {
+            match if let Some(words) = k.get_desc().clone() {
+                    db.create("tags", &[String::from("tag_name"), String::from("info")], &[k.get_name().clone(), words]).await
+                } else {
+                    db.create("tags", &[String::from("tag_name")], &[k.get_name().clone()]).await
+                }
+            {
+                Ok(_) => { }
+                Err(e) => {
+                    logger::naive::warn(e.to_string());
+                    if e.as_database_error().unwrap().is_unique_violation() { }
+                    else { panic!() }
+                },
+            }
+            logger::naive::watch(self.link_tags(db, &k.get_name(), v).await);
             self.auto_update_links(db).await;
         }
 
@@ -55,12 +104,12 @@ impl Tag {
     }
 
     /// The non-async version of `add_tag`
-    pub fn add_sync(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) {
-        block_on(async { watch(self.add_tag(db, weights).await) });
+    pub fn add_sync<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: HashMap<T, f32>) {
+        block_on(async { watch(self.add_tag(db, name_weight_pairs).await) });
     }
 
     /// Updates the autonomous links between tags
-    pub async fn auto_update_links(&self, db: &mut db::crud::Db) {
+    pub async fn auto_update_links(&self, db: &mut db::crud::Database) {
         // TODO: a reverse-way propagation
         let affected_tags: Vec<(String, f32)> = match db.read(
             "relationship",
@@ -107,7 +156,7 @@ impl Tag {
         }
     }
 
-    pub async fn update_all_links(db: &mut db::crud::Db) {
+    pub async fn update_all_links(db: &mut db::crud::Database) {
         for name in match db.read(
             "tags",
             &["tag_name".to_string()],
@@ -120,25 +169,25 @@ impl Tag {
         } { Tag { name, desc: None }.auto_update_links(db).await; }
     }
 
-    pub async fn force_update_all_links(db: &mut db::crud::Db) {
+    pub async fn force_update_all_links(db: &mut db::crud::Database) {
         logger::naive::watch(db.delete("relationship", "is_origin", "false").await);
         Tag::update_all_links(db).await;
     }
 
-    pub async fn remove_tag(&self, db: &mut db::crud::Db) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn remove_tag(&self, db: &mut db::crud::Database) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         let res1 = db.delete("relationship", "tag1", &self.name).await;
         let res2 = db.delete("relationship", "tag2", &self.name).await;
         if res1.is_ok() && res2.is_ok() { db.delete("tags", "tag_name", &self.name).await }
         else { res1 }
     }
 
-    pub fn rem_sync(&self, db: &mut db::crud::Db) {
+    pub fn rem_sync(&self, db: &mut db::crud::Database) {
         block_on(async { watch(self.remove_tag(db).await) });
     }
 
-    pub async fn link_tags(&self, db: &mut db::crud::Db, target: &str, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn link_tags<T: MakeTag>(&self, db: &mut db::crud::Database, target: &T, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
-        let data = [self.name.clone(), format!("'{}'", target), ratio.to_string(), String::from("true")];
+        let data = [self.name.clone(), format!("{}", target.get_name()), ratio.to_string(), String::from("true")];
         
         match db.update(
             "relationship", 
@@ -154,14 +203,14 @@ impl Tag {
         }
     }
 
-    pub fn link_sync(&self, db: &mut db::crud::Db, target: &str, ratio: f32) {
+    pub fn link_sync<T: MakeTag>(&self, db: &mut db::crud::Database, target: &T, ratio: f32) {
         block_on(async { watch(self.link_tags(db, target, ratio).await) });
     }
 
-    pub async fn query_relation(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
+    pub async fn query_relation<T1: MakeTag, T2: MakeTag>(db: &mut db::crud::Database, tag1: &T1, tag2: &T2) -> Option<f32> {
         match db.read("relationship",
             &[String::from("*")],
-            &format!("tag1 = '{}' AND tag2 = '{}'", tag1, tag2),
+            &format!("tag1 = {} AND tag2 = {}", tag1.get_name(), tag2.get_name()),
             ""
         ).await {
             Ok(vrow) => { if vrow.is_empty() {
@@ -175,11 +224,11 @@ impl Tag {
         }
     }
 
-    pub fn query_sync(db: &mut db::crud::Db, tag1: &str, tag2: &str) -> Option<f32> {
+    pub fn query_sync<T1: MakeTag, T2: MakeTag>(db: &mut db::crud::Database, tag1: &T1, tag2: &T2) -> Option<f32> {
         block_on(async { Tag::query_relation(db, tag1, tag2).await })
     }
 
-    pub async fn query_top_related(&self, db: &mut db::crud::Db) -> Vec<String> {
+    pub async fn query_top_related(&self, db: &mut db::crud::Database) -> Vec<String> {
         match db.read(
             "relationship",
             &["tag2".into()],
@@ -196,11 +245,11 @@ impl Tag {
         }
     }
 
-    pub fn qtr_sync(&self, db: &mut db::crud::Db) -> Vec<String> {
+    pub fn qtr_sync(&self, db: &mut db::crud::Database) -> Vec<String> {
         block_on(async { self.query_top_related(db).await })
     }
 
-    pub async fn query_desc(&self, db: &mut db::crud::Db) -> Option<String> {
+    pub async fn query_desc(&self, db: &mut db::crud::Database) -> Option<String> {
         match db.read(
             "tags", 
             &[String::from("info")], 
@@ -218,7 +267,7 @@ impl Tag {
         }
     }
 
-    pub fn qd_sync(&self, db: &mut db::crud::Db) -> Option<String> {
+    pub fn qd_sync(&self, db: &mut db::crud::Database) -> Option<String> {
         block_on(async { self.query_desc(db).await })
     }
 }

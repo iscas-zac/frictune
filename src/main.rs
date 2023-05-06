@@ -8,7 +8,7 @@ fn main() {
         Ok(config) => config,
         Err(e) => frictune::logger::naive::rupt(e.to_string().as_str()),
     };
-    let mut conn = match db::crud::Db::sync_new(&settings.db_uri)
+    let mut conn = match db::crud::Database::sync_new(&settings.db_uri)
     {
         Ok(conn) => conn,
         Err(e) => frictune::logger::naive::rupt(e.to_string().as_str()),

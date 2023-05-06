@@ -5,14 +5,14 @@ use futures::executor::block_on;
 
 fn test_primitive_apis() {
         block_on(async {
-        let mut conn = db::crud::Db::new("./tags.db").await.unwrap();
+        let mut conn = db::crud::Database::new("./tags.db").await.unwrap();
         watch(conn.delete("relationship", "1", "1").await);
         let a = frictune::Tag{ name: String::from("7"), desc: None };
         let b = frictune::Tag{ name: String::from("8"), desc: None };
-        watch(a.add_tag(&mut conn, HashMap::new()).await);
+        watch(a.add_tag(&mut conn, HashMap::new() as HashMap<String, f32>).await);
         watch(b.add_tag(&mut conn, HashMap::from([(String::from("7"), 0.4)])).await);
         let c = frictune::Tag{ name: String::from("9"), desc: None };
-        watch(c.add_tag(&mut conn, HashMap::new()).await);
+        watch(c.add_tag(&mut conn, HashMap::new() as HashMap<String, f32>).await);
         watch(a.link_tags(&mut conn, &c.name, 0.8).await);
         b.auto_update_links(&mut conn).await;
         let d = frictune::Tag{ name: String::from("10"), desc: None };
