@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use frictune::{logger::naive::watch, db, Tag};
 use futures::executor::block_on;
 

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use frictune::Tag;
 use clap::Parser;
 use clap::Subcommand;

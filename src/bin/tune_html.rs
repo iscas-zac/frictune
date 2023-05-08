@@ -1,4 +1,4 @@
-use std::{io::{BufReader, Read}, fs::File, collections::HashMap};
+use std::{io::{BufReader, Read}, fs::File};
 use handlebars::Handlebars;
 
 extern crate pest;

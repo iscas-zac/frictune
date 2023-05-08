@@ -10,7 +10,7 @@ pub fn rupt(info: &str) -> ! {
 
 pub fn watch(result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>) {
     match result {
-        Ok(res) => { warn("success".to_string()); },
+        Ok(_res) => { warn("success".to_string()); },
         Err(e) => { warn(e.to_string()); }
     }
 }
