@@ -1,3 +1,5 @@
+use crate::db::crud::{DatabaseResult, DatabaseError};
+
 pub fn warn(info: String) {
     println!("{}", info);
 }
@@ -8,9 +10,9 @@ pub fn rupt(info: &str) -> ! {
     panic!();
 }
 
-pub fn watch(result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>) {
+pub fn watch(result: Result<DatabaseResult, DatabaseError>) {
     match result {
-        Ok(_res) => { warn("success".to_string()); },
+        Ok(_) => { warn("success".to_string()); },
         Err(e) => { warn(e.to_string()); }
     }
 }

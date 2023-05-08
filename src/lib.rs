@@ -1,6 +1,8 @@
 pub mod db;
 pub mod logger;
 
+use db::crud::{DatabaseResult, DatabaseError};
+use dioxus::html::th;
 use futures::executor::block_on;
 use logger::naive::watch;
 use sqlx::Row;
@@ -63,7 +65,7 @@ impl Tag {
     ///     assert_eq!(sample2.query_relation(db).unwrap(), 0.4);
     /// }
     /// ```
-    pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: &[(T, f32)]) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: &[(T, f32)]) -> Result<DatabaseResult, DatabaseError> {
         match if let Some(words) = self.desc.clone() {
                 db.create("tags", &[String::from("tag_name"), String::from("info")], &[self.name.clone(), words]).await
             } else {
@@ -73,7 +75,7 @@ impl Tag {
             Ok(_) => { }
             Err(e) => {
                 logger::naive::warn(e.to_string());
-                if e.as_database_error().unwrap().is_unique_violation() { }
+                if let DatabaseError::UniqueViolation = e { }
                 else { panic!() }
             },
         }
@@ -88,7 +90,7 @@ impl Tag {
                 Ok(_) => { }
                 Err(e) => {
                     logger::naive::warn(e.to_string());
-                    if e.as_database_error().unwrap().is_unique_violation() { }
+                    if let DatabaseError::UniqueViolation = e { }
                     else { panic!() }
                 },
             }
@@ -97,7 +99,7 @@ impl Tag {
         }
 
         // TODO: change the return value later
-        Ok(sqlx::sqlite::SqliteQueryResult::default())
+        Ok(DatabaseResult::Success("add_tag successful".into()))
     }
 
     /// The non-async version of `add_tag`
@@ -114,23 +116,27 @@ impl Tag {
             &format!("tag1 = {}", self.name),
             ""
         ).await {
-            Ok(vrow) => vrow.iter().map(|row|
-                (row.get::<String, usize>(0), row.get::<f32, usize>(1))).collect(),
+            Ok(things) => 
+                things.get::<String>(0).into_iter().zip(
+                    things.get::<f32>(1)
+                ).collect(),
             Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         };
 
         for (tag, weight) in affected_tags {
-            for row in match db.read(
+            for (n, w) in match db.read(
                 "relationship",
                 &[String::from("*")],
                 &format!("tag1 = '{}'", tag),
                 ""
             ).await
             {
-                Ok(vrow) => { if vrow.is_empty() {
+                Ok(things) => { if things.len() == 0 {
                         continue
                     } else {
-                        vrow
+                        things.get::<String>(0).into_iter().zip(
+                            things.get::<f32>(1)
+                        )
                     }
                 }
                 Err(e) => { logger::naive::warn(e.to_string()); continue }
@@ -138,8 +144,8 @@ impl Tag {
                 let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
                 let data = [
                     self.name.clone(),
-                    format!("'{}'", row.get::<String, usize>(1)), 
-                    (row.get::<f32, usize>(2) * weight).to_string(),
+                    format!("'{}'", n), 
+                    (w * weight).to_string(),
                     String::from("false")];
                 logger::naive::watch(db.update(
                     "relationship", 
@@ -160,8 +166,7 @@ impl Tag {
             &format!("true"),
             ""
         ).await {
-            Ok(vrow) => vrow.into_iter().map(|row|
-                row.get::<String, usize>(0)),
+            Ok(vrow) => vrow.get::<String>(0),
             Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         } { Tag { name, desc: None }.auto_update_links(db).await; }
     }
@@ -171,7 +176,7 @@ impl Tag {
         Tag::update_all_links(db).await;
     }
 
-    pub async fn remove_tag(&self, db: &mut db::crud::Database) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn remove_tag(&self, db: &mut db::crud::Database) -> Result<DatabaseResult, DatabaseError> {
         let res1 = db.delete("relationship", "tag1", &self.name).await;
         let res2 = db.delete("relationship", "tag2", &self.name).await;
         if res1.is_ok() && res2.is_ok() { db.delete("tags", "tag_name", &self.name).await }
@@ -182,7 +187,7 @@ impl Tag {
         block_on(async { watch(self.remove_tag(db).await) });
     }
 
-    pub async fn link_tags<T: MakeTag>(&self, db: &mut db::crud::Database, target: &T, ratio: f32) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn link_tags<T: MakeTag>(&self, db: &mut db::crud::Database, target: &T, ratio: f32) -> Result<DatabaseResult, DatabaseError> {
         let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
         let data = [self.name.clone(), format!("{}", target.get_name()), ratio.to_string(), String::from("true")];
         
@@ -195,7 +200,7 @@ impl Tag {
             "true"
         ).await
         {
-            Ok(res) => { self.auto_update_links(db).await; Ok(res) },
+            Ok(res) => { self.auto_update_links(db).await; Ok(res.into()) },
             Err(e) => Err(e)
         }
     }
@@ -204,19 +209,17 @@ impl Tag {
         block_on(async { watch(self.link_tags(db, target, ratio).await) });
     }
 
+    // TODO: change the f32 to f64
     pub async fn query_relation<T1: MakeTag, T2: MakeTag>(db: &mut db::crud::Database, tag1: &T1, tag2: &T2) -> Option<f32> {
         match db.read("relationship",
             &[String::from("*")],
             &format!("tag1 = {} AND tag2 = {}", tag1.get_name(), tag2.get_name()),
             ""
         ).await {
-            Ok(vrow) => { if vrow.is_empty() {
-                    None
-                } else {
-                    if vrow.len() > 1 { logger::naive::warn(String::from("more than one queryed")); panic!() }
-                    vrow.get(0).map(|row| row.get::<f32, usize>(2))
-                }
-            }
+            Ok(things) => {
+                if things.len() != 1 { logger::naive::warn(String::from("other than one queryed")); panic!() }
+                things.get::<f32>(2).get(0).copied()
+            },
             Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         }
     }
@@ -232,12 +235,8 @@ impl Tag {
             &format!("tag1 = {}", self.name),
             "ORDER BY weight"
         ).await {
-            Ok(vrow) => { if vrow.is_empty() {
-                    Vec::new()
-                } else {
-                    vrow.iter().map(|row| row.get::<String, usize>(0)).collect()
-                }
-            }
+            Ok(things) => 
+                things.get::<String>(0),
             Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         }
     }
@@ -253,12 +252,9 @@ impl Tag {
             &format!("tag_name = {}", self.name),
             ""
         ).await {
-            Ok(vrow) => { if vrow.is_empty() {
-                    None
-                } else {
-                    if vrow.len() > 1 { logger::naive::warn(String::from("more than one queryed")); panic!() }
-                    vrow.get(0).map(|row| row.get::<String, usize>(0))
-                }
+            Ok(things) => {
+                if things.len() != 1 { logger::naive::warn(String::from("other than one queryed")); panic!() }
+                things.get::<String>(0).get(0).cloned()
             }
             Err(e) => { logger::naive::warn(e.to_string()); panic!() }
         }
