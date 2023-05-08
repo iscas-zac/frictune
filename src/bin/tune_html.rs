@@ -172,11 +172,11 @@ fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
                 }
             }
 
-            main_tag.add_sync(&mut frictune::db::crud::Database::sync_new(db_conn).unwrap(), trailers
+            main_tag.add_sync(&mut frictune::db::crud::Database::sync_new(db_conn).unwrap(), &trailers
                 .into_iter()
                 .map(|(tag, weight)|
                     (tag, weight)
-                ).collect::<HashMap<_, f32>>());
+                ).collect::<Vec<(_, f32)>>());
             main_tag
         })
     }).collect();

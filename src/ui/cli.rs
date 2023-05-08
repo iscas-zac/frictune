@@ -43,15 +43,15 @@ pub fn parse_args(db_conn: &mut frictune::db::crud::Database) {
         Some(Commands::Add { name, tags, weights }) => {
             if tags.len() == weights.len() {
                 Tag::new(name).add_sync(db_conn,
-                    tags.iter().zip(weights)
+                    &tags.iter().zip(weights)
                         .map(|(tag, weight)| (tag.to_owned(), weight.to_owned()))
-                        .collect::<HashMap<String, f32>>()
+                        .collect::<Vec<(String, f32)>>()
                 );
             }
 
             else {
                 frictune::logger::naive::warn("links should be <name, weight> pairs.".to_owned());
-                Tag::new(name).add_sync(db_conn, HashMap::new() as HashMap<String, f32>);
+                Tag::new(name).add_sync::<String>(db_conn, &[]);
             }
             
         },

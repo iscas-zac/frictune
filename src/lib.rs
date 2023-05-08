@@ -1,19 +1,16 @@
 pub mod db;
 pub mod logger;
-use std::collections::HashMap;
 
 use futures::executor::block_on;
 use logger::naive::watch;
 use sqlx::Row;
 
-// TODO: remove this by change the add_tag signature
-#[derive(PartialEq, Eq, Hash)]
 pub struct Tag {
     pub name: String,
     pub desc: Option<String>,
 }
 
-pub trait MakeTag: Eq + PartialEq {
+pub trait MakeTag {
     fn get_name(&self) -> String;
     fn get_desc(&self) -> Option<String>;
     fn get_tag(&self) -> Tag;
@@ -66,7 +63,7 @@ impl Tag {
     ///     assert_eq!(sample2.query_relation(db).unwrap(), 0.4);
     /// }
     /// ```
-    pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: HashMap<T, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: &[(T, f32)]) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
         match if let Some(words) = self.desc.clone() {
                 db.create("tags", &[String::from("tag_name"), String::from("info")], &[self.name.clone(), words]).await
             } else {
@@ -95,7 +92,7 @@ impl Tag {
                     else { panic!() }
                 },
             }
-            logger::naive::watch(self.link_tags(db, &k.get_name(), v).await);
+            logger::naive::watch(self.link_tags(db, &k.get_name(), *v).await);
             self.auto_update_links(db).await;
         }
 
@@ -104,7 +101,7 @@ impl Tag {
     }
 
     /// The non-async version of `add_tag`
-    pub fn add_sync<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: HashMap<T, f32>) {
+    pub fn add_sync<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: &[(T, f32)]) {
         block_on(async { watch(self.add_tag(db, name_weight_pairs).await) });
     }
 
