@@ -2,7 +2,7 @@ pub mod db;
 pub mod logger;
 
 use db::crud::{DatabaseResult, DatabaseError};
-use dioxus::html::th;
+
 use futures::executor::block_on;
 use logger::naive::watch;
 use sqlx::Row;
