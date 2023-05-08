@@ -5,7 +5,6 @@ use db::crud::{DatabaseResult, DatabaseError};
 
 use futures::executor::block_on;
 use logger::naive::watch;
-use sqlx::Row;
 
 pub struct Tag {
     pub name: String,
