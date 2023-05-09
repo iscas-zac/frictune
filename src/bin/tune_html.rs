@@ -45,10 +45,15 @@ const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 /// The whole stuff will be fit into a template in the file
 /// `./template.hbs`.
 fn main() {
-    match handle_all("./template.hbs",
-        "./temp.txt",
-        "./tags.db",
-        "b.html") {
+    let mut args = std::env::args(); args.next();
+    let template_url = std::env::args().next().unwrap_or("./template.hbs".into());
+    let content_url = std::env::args().next().unwrap_or("./temp.txt".into());
+    let database_url = std::env::args().next().unwrap_or("./tags.db".into());
+    let output_name = std::env::args().next().unwrap_or("b.html".into());
+    match handle_all(&template_url,
+        &content_url,
+        &database_url,
+        &output_name) {
         Ok(_) => {},
         Err(e) => { println!("{}", e); }
     }
