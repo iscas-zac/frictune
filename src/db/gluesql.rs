@@ -1,6 +1,4 @@
-use core::panic;
-use futures::executor::block_on;
-use gluesql::{sled_storage::SledStorage, prelude::{Glue, Payload, Row}, core::{executor::ValidateError, result}};
+use gluesql::{sled_storage::SledStorage, prelude::{Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
 
 pub struct Database {
     conn: Glue<SledStorage>,
@@ -10,6 +8,47 @@ pub struct Database {
 pub enum DatabaseError {
     UniqueViolation,
     GlueError(result::Error),
+}
+
+pub trait GlueType {
+    fn get_glue_type() -> DataType;
+    fn get_content(thing: Value) -> Self;
+}
+
+impl GlueType for i32 {
+    fn get_glue_type() -> DataType {
+        DataType::Int32
+    }
+    fn get_content(thing: Value) -> Self {
+        if let Value::I32(content) = thing {
+            content
+        }
+        else { Self::default() }
+    }
+}
+
+impl GlueType for f32 {
+    fn get_glue_type() -> DataType {
+        DataType::Float
+    }
+    fn get_content(thing: Value) -> Self {
+        if let Value::F64(content) = thing {
+            content as f32
+        }
+        else { Self::default() }
+    }
+}
+
+impl GlueType for String {
+    fn get_glue_type() -> DataType {
+        DataType::Text
+    }
+    fn get_content(thing: Value) -> Self {
+        if let Value::Str(content) = thing {
+            content
+        }
+        else { Self::default() }
+    }
 }
 
 impl std::fmt::Display for DatabaseError {
@@ -41,13 +80,16 @@ impl DatabaseResult {
         }
     }
 
-    pub fn get<T>(&self, index: usize) -> Vec<T>
+    pub fn get<T: GlueType>(&self, index: usize) -> Vec<T>
     {
         match self {
             Self::Success(_) => vec![],
             Self::Things(v) =>
                 v.iter().map(|row|
-                    row.get_value_by_index(index).unwrap().cast(T)
+                    T::get_content(
+                        row.get_value_by_index(index).unwrap()
+                            .cast(&T::get_glue_type()).unwrap()
+                    )
                 ).collect()
         }
     }
@@ -141,25 +183,5 @@ impl Database {
         ).await
             .map(|value| DatabaseResult::from(value))
             .map_err(|value| DatabaseError::from(value))
-    }
-}
-
-fn main() {
-    let a = Database::sync_new("aaa");
-
-    let storage = SledStorage::new("data/doc-db").unwrap();
-    let mut glue = Glue::new(storage);
-
-    let sqls = vec![
-        "DROP TABLE IF EXISTS Glue;",
-        "CREATE TABLE Glue (id INTEGER);",
-        "INSERT INTO Glue VALUES (100);",
-        "INSERT INTO Glue VALUES (200);",
-        "SELECT * FROM Glue WHERE id > 100;",
-    ];
-
-    for sql in sqls {
-        let output = glue.execute(sql).unwrap();
-        println!("{:?}", output)
     }
 }
