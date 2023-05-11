@@ -3,7 +3,7 @@
 pub mod ui;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod conf;
-#[cfg(not(target_arch = "wasm32"))]
+
 use frictune::db;
 
 fn main() {
@@ -23,8 +23,9 @@ fn main() {
         else {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
             console_log::init_with_level(log::Level::Warn).expect("无法初始化日志库");
-
+            //db::crud::Database::sync_new("tags.glue");
             dioxus_web::launch(App);
+
         }
     }
 }
@@ -33,16 +34,11 @@ fn main() {
 use dioxus::prelude::*;
 #[cfg(target_arch = "wasm32")]
 fn App(cx: Scope) -> Element {
+    use_future(&cx, (), |_| async move {
+        let response = gloo::net::http::Request::get("./tags.db").send().await;
+        let content = response.text().await.unwrap_or_default();
+    });
     cx.render(rsx! {
-        a {
-            href: "https://www.dioxus.cn/",
-            "Dioxus 中文网"
-        }
-        div {
-            button {}
-        }
-        div {
-            button {}
-        }
+        Button {}
     })
 }

@@ -1,11 +1,27 @@
 use gluesql::{sled_storage::SledStorage, prelude::{Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
+use serde::{Serialize, Deserialize};
+use wasm_bindgen::prelude::wasm_bindgen;
+use std::cell::RefCell;
+use std::rc::Rc;
 
+#[wasm_bindgen]
 pub struct Database {
     conn: Glue<SledStorage>,
 }
 
+#[wasm_bindgen]
 #[derive(Debug, thiserror::Error)]
-pub enum DatabaseError {
+pub struct DatabaseError {
+    inner: Rc<RefCell<InnerDatabaseError>>,
+}
+
+impl DatabaseError {
+    fn new(inner: InnerDatabaseError) -> DatabaseError {
+        DatabaseError { inner: Rc::new(RefCell::new(inner)) }
+    }
+}
+
+enum InnerDatabaseError {
     UniqueViolation,
     GlueError(result::Error),
 }
@@ -53,38 +69,50 @@ impl GlueType for String {
 
 impl std::fmt::Display for DatabaseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UniqueViolation => f.write_str("unique violation"),
-            Self::GlueError(e) => f.write_str(e.to_string().as_str()),
+        match Rc::clone(self.inner).get() {
+            InnerDatabaseError::UniqueViolation => f.write_str("unique violation"),
+            InnerDatabaseError::GlueError(e) => f.write_str(e.to_string().as_str()),
         }
     }
 }
 
-pub enum DatabaseResult {
+#[wasm_bindgen]
+pub struct DatabaseResult {
+    inner: Rc<RefCell<InnerDatabaseResult>>,
+}
+
+impl DatabaseResult {
+    fn new(inner: InnerDatabaseResult) -> DatabaseResult {
+        DatabaseResult { inner: Rc::new(RefCell::new(inner)) }
+    }
+}
+
+enum InnerDatabaseResult {
     Success(String),
     Things(Vec<Row>),
 }
 
 impl From<Vec<Row>> for DatabaseResult {
     fn from(value: Vec<Row>) -> Self {
-        DatabaseResult::Things(value)
+        DatabaseResult::new(InnerDatabaseResult::Things(value))
     }
 }
 
+#[wasm_bindgen]
 impl DatabaseResult {
     pub fn len(&self) -> usize {
-        match self {
-            Self::Success(_) => 0,
-            Self::Things(v) =>
+        match Rc::clone(self.inner).get() {
+            InnerDatabaseResult::Success(_) => 0,
+            InnerDatabaseResult::Things(v) =>
                 v.len()
         }
     }
 
     pub fn get<T: GlueType>(&self, index: usize) -> Vec<T>
     {
-        match self {
-            Self::Success(_) => vec![],
-            Self::Things(v) =>
+        match Rc::clone(self.inner).get() {
+            InnerDatabaseResult::Success(_) => vec![],
+            InnerDatabaseResult::Things(v) =>
                 v.iter().map(|row|
                     T::get_content(
                         row.get_value_by_index(index).unwrap()
@@ -95,26 +123,25 @@ impl DatabaseResult {
     }
 }
 
-
 impl From<Vec<Payload>> for DatabaseResult {
     fn from(values: Vec<Payload>) -> Self {
-        DatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
+        DatabaseResult::new(InnerDatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
             match payload {
                 Payload::Select { labels, rows } => 
                     [acc, rows].concat(),
                 _ => acc,
             }
-        ))
+        )))
     }
 }
 
 impl From<gluesql::core::result::Error> for DatabaseError {
     fn from(value: gluesql::core::result::Error) -> Self {
-        match value {
+        DatabaseError::new(match value {
             gluesql::core::result::Error::Validate(ValidateError::DuplicateEntryOnPrimaryKeyField(k))
-                => DatabaseError::UniqueViolation,
-            other => DatabaseError::GlueError(other),
-        }
+                => InnerDatabaseError::UniqueViolation,
+            other => InnerDatabaseError::GlueError(other),
+        })
     }
 }
 

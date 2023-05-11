@@ -17,3 +17,4 @@ Cargo.lock
 b.html
 
 tags.db
+.vscode/settings.json
