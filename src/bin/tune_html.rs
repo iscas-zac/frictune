@@ -132,7 +132,7 @@ fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
     // let mut conn = match frictune::db::crud::Database::sync_new(db_conn)
     // {
     //     Ok(conn) => std::rc::Rc::new(conn),
-    //     Err(e) => frictune::logger::naive::rupt(e.to_string().as_str()),
+    //     Err(e) => frictune::logger::rupt(e.to_string().as_str()),
     // };
 
     let pairs = TagParser::parse(Rule::final_seg, content)
@@ -166,14 +166,14 @@ fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
                                     }
                                 },
                                 Rule::number => num = brace_inner.as_str().parse::<f64>().unwrap(),
-                                _ => { frictune::logger::naive::rupt(&format!("brace_inner is {}", brace_inner.as_str())); }
+                                _ => { frictune::logger::rupt(&format!("brace_inner is {}", brace_inner.as_str())); }
                             }
                         }
                         if !trailing_tag.name.contains("''") {
                             trailers.push((trailing_tag, num as f32));
                         }
                     },
-                    _ => { frictune::logger::naive::rupt(&format!("inner is {}", inner.as_str())); }
+                    _ => { frictune::logger::rupt(&format!("inner is {}", inner.as_str())); }
                 }
             }
 

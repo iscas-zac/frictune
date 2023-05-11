@@ -1,4 +1,4 @@
-use frictune::{logger::naive::watch, db, Tag};
+use frictune::{logger::watch, db, Tag};
 use futures::executor::block_on;
 
 fn test_primitive_apis() {

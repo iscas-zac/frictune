@@ -4,7 +4,7 @@ pub mod logger;
 use db::crud::{DatabaseResult, DatabaseError};
 
 use futures::executor::block_on;
-use logger::naive::watch;
+use logger::watch;
 
 pub struct Tag {
     pub name: String,
@@ -73,7 +73,7 @@ impl Tag {
         {
             Ok(_) => { }
             Err(e) => {
-                logger::naive::warn(e.to_string());
+                logger::warn(e.to_string());
                 if let DatabaseError::UniqueViolation = e { }
                 else { panic!() }
             },
@@ -88,12 +88,12 @@ impl Tag {
             {
                 Ok(_) => { }
                 Err(e) => {
-                    logger::naive::warn(e.to_string());
+                    logger::warn(e.to_string());
                     if let DatabaseError::UniqueViolation = e { }
                     else { panic!() }
                 },
             }
-            logger::naive::watch(self.link_tags(db, &k.get_name(), *v).await);
+            logger::watch(self.link_tags(db, &k.get_name(), *v).await);
             self.auto_update_links(db).await;
         }
 
@@ -119,7 +119,7 @@ impl Tag {
                 things.get::<String>(0).into_iter().zip(
                     things.get::<f32>(1)
                 ).collect(),
-            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+            Err(e) => { logger::warn(e.to_string()); panic!() }
         };
 
         for (tag, weight) in affected_tags {
@@ -138,7 +138,7 @@ impl Tag {
                         )
                     }
                 }
-                Err(e) => { logger::naive::warn(e.to_string()); continue }
+                Err(e) => { logger::warn(e.to_string()); continue }
             } {
                 let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
                 let data = [
@@ -146,7 +146,7 @@ impl Tag {
                     format!("'{}'", n), 
                     (w * weight).to_string(),
                     String::from("false")];
-                logger::naive::watch(db.update(
+                logger::watch(db.update(
                     "relationship", 
                     &entries,
                     &data,
@@ -166,12 +166,12 @@ impl Tag {
             ""
         ).await {
             Ok(vrow) => vrow.get::<String>(0),
-            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+            Err(e) => { logger::warn(e.to_string()); panic!() }
         } { Tag { name, desc: None }.auto_update_links(db).await; }
     }
 
     pub async fn force_update_all_links(db: &mut db::crud::Database) {
-        logger::naive::watch(db.delete("relationship", "is_origin", "false").await);
+        logger::watch(db.delete("relationship", "is_origin", "false").await);
         Tag::update_all_links(db).await;
     }
 
@@ -216,10 +216,10 @@ impl Tag {
             ""
         ).await {
             Ok(things) => {
-                if things.len() != 1 { logger::naive::warn(String::from("other than one queryed")); panic!() }
+                if things.len() != 1 { logger::warn(String::from("other than one queryed")); panic!() }
                 things.get::<f32>(2).get(0).copied()
             },
-            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+            Err(e) => { logger::warn(e.to_string()); panic!() }
         }
     }
 
@@ -236,7 +236,7 @@ impl Tag {
         ).await {
             Ok(things) => 
                 things.get::<String>(0),
-            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+            Err(e) => { logger::warn(e.to_string()); panic!() }
         }
     }
 
@@ -252,10 +252,10 @@ impl Tag {
             ""
         ).await {
             Ok(things) => {
-                if things.len() != 1 { logger::naive::warn(String::from("other than one queryed")); panic!() }
+                if things.len() != 1 { logger::warn(String::from("other than one queryed")); panic!() }
                 things.get::<String>(0).get(0).cloned()
             }
-            Err(e) => { logger::naive::warn(e.to_string()); panic!() }
+            Err(e) => { logger::warn(e.to_string()); panic!() }
         }
     }
 

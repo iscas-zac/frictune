@@ -41,11 +41,12 @@ Web UI: interaction and representation
 The project is under **lazy** development. A few features are to be added:
 
 - [ ] testcases
+    - [ ] assertions
 
 - [ ] better error handling style
 
 - [ ] better rust code style (maybe not)
-    - [ ] parameter style, (reference instead of move, [] instead of vec)
+    - [x] parameter style, (reference instead of move, [] instead of vec)
 
 - [ ] configurations
     - [x] read
@@ -56,6 +57,7 @@ The project is under **lazy** development. A few features are to be added:
     - [x] Command Line Interface
         - [ ] REPL
     - [x] render to static HTML
+    - [ ] web UI
 
 - [ ] automated workflows (with file folders / websites)
 

@@ -48,7 +48,7 @@ pub fn parse_args(db_conn: &mut frictune::db::crud::Database) {
             }
 
             else {
-                frictune::logger::naive::warn("links should be <name, weight> pairs.".to_owned());
+                frictune::logger::warn("links should be <name, weight> pairs.".to_owned());
                 Tag::new(name).add_sync::<String>(db_conn, &[]);
             }
             
@@ -58,20 +58,20 @@ pub fn parse_args(db_conn: &mut frictune::db::crud::Database) {
         },
         Some(Commands::Eval { src, tgt }) => {
             match Tag::query_sync(db_conn, src, tgt) {
-                Some(weight) => { frictune::logger::naive::print(
+                Some(weight) => { frictune::logger::print(
                     &format!("The weight between {} and {} is {}",
                         src, tgt, weight
                     )
                 )},
                 None => {
-                    frictune::logger::naive::print("No such link")
+                    frictune::logger::print("No such link")
                 }
             }
         },
         Some(Commands::Link { src, tgt, weight }) => {
             Tag::new(src).link_sync(db_conn, tgt, *weight);
         },
-        Some(Commands::Repl) => { frictune::logger::naive::rupt("not implemented"); },
-        None => { frictune::logger::naive::rupt("not implemented"); },
+        Some(Commands::Repl) => { frictune::logger::rupt("not implemented"); },
+        None => { frictune::logger::rupt("not implemented"); },
     }
 }
