@@ -148,7 +148,7 @@ impl Database {
         conn.execute("CREATE TABLE IF NOT EXISTS tags
         (
             tag_name    TEXT PRIMARY KEY NOT NULL,
-            info     TEXT
+            info     TEXT DEFAULT NULL
         );
         CREATE TABLE IF NOT EXISTS relationship
         (
@@ -164,8 +164,10 @@ impl Database {
     }
 
     pub async fn create(&mut self, table: &str, entry: &[String], data: &[String]) -> Result<DatabaseResult, DatabaseError> {
+        let query = &format!("INSERT INTO {} ({}) VALUES({});", table, entry.join(", "), data.join(", "));
+        crate::logger::print(&query);
         self.conn.execute_async(
-            &format!("INSERT INTO {} ({}) VALUES({});", table, entry.join(", "), data.join(", "))
+            query
         ).await
             .map(|value| DatabaseResult::from(value))
             .map_err(|value| DatabaseError::from(value))
