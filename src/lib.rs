@@ -49,6 +49,15 @@ impl Tag {
     pub fn new(name: &str) -> Self {
         Tag { name: format!("'{}'", name), desc: None }
     }
+
+    pub fn new_with_desc(name: &str, desc: Option<String>) -> Self {
+        let desc = desc.unwrap_or_default();
+        Tag {
+            name: format!("'{}'", name),
+            desc: if (!desc.is_empty()) { Some(desc) }
+                else { None },
+        }
+    }
     /// Add a tag to the database.
     /// A series of tag/weight pairs can follow to initialize the mutual link weights.
     /// 
@@ -75,7 +84,7 @@ impl Tag {
             Err(e) => {
                 logger::warn(e.to_string());
                 if let DatabaseError::UniqueViolation = e { }
-                else { panic!() }
+                else { logger::warn(e.to_string()); panic!() }
             },
         }
 
@@ -90,7 +99,7 @@ impl Tag {
                 Err(e) => {
                     logger::warn(e.to_string());
                     if let DatabaseError::UniqueViolation = e { }
-                    else { panic!() }
+                    else { logger::warn(e.to_string()); panic!() }
                 },
             }
             logger::watch(self.link_tags(db, &k.get_name(), *v).await);

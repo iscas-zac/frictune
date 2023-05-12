@@ -43,7 +43,8 @@ fn App(cx: Scope) -> Element {
         });
     match temp.value() {
         Some(response) => {
-            let mut glue = Database::deser_new(response).unwrap();
+            let glue = Database::deser_new(response).unwrap();
+            use_shared_state_provider(cx, || glue);
 
             let tag1_name = use_state(cx, || "abc".to_string());
             let tag1_desc = use_state(cx, || "".to_string());
@@ -60,23 +61,36 @@ fn App(cx: Scope) -> Element {
                 input { value: "{link}", },
                 button {
                     onclick: move |_| {
-                        // gluedb.with_mut(|db| frictune::Tag { name: tag1_name.get().into(), desc: Some(tag1_desc.get().into()) }
-                        //     .add_sync::<String>(db, &[]));
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
+                            .add_sync::<String>(&mut glue.write_silent(), &[]);
+                        web_sys::console::log_1(&"111".into());
                     },
                     "C"
                 }
                 button {
                     onclick: move |_| {
+                        let glue = use_shared_state::<Database>(cx);
                     },
                     "R"
                 }
                 button {
                     onclick: move |_| {
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        let mut glue = glue.write_silent();
+                        frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
+                            .link_sync(&mut glue,
+                                &frictune::Tag::new_with_desc(tag2_name.get(), Some(tag2_desc.get().into()))
+                                , *link.get())
                     },
                     "U"
                 }
                 button {
                     onclick: move |_| {
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        let mut glue = glue.write_silent();
+                        frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
+                            .rem_sync(&mut glue);
                     },
                     "D"
                 }
