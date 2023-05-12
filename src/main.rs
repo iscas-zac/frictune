@@ -51,28 +51,39 @@ fn App(cx: Scope) -> Element {
             let tag2_name = use_state(cx, || "".to_string());
             let tag2_desc = use_state(cx, || "".to_string());
             let link = use_state(cx, || 0.0);
+            let words = use_state(cx, || "".to_string());
 
             cx.render(rsx! {
                 
-                input { value: "{tag1_name}", },
-                input { value: "{tag1_desc}", },
-                input { value: "{tag2_name}", },
-                input { value: "{tag2_desc}", },
-                input { value: "{link}", },
+                input { value: "{tag1_name}", oninput: |e| tag1_name.set(e.value.clone()) },
+                input { value: "{tag1_desc}", oninput: |e| tag1_desc.set(e.value.clone()) },
+                input { value: "{tag2_name}", oninput: |e| tag2_name.set(e.value.clone()) },
+                input { value: "{tag2_desc}", oninput: |e| tag2_desc.set(e.value.clone()) },
+                input { value: "{link}", oninput: |e| link.set(e.value.clone().parse::<f32>().unwrap_or_default()) },
+                div { "{words}" }
                 button {
                     onclick: move |_| {
                         let glue = use_shared_state::<Database>(cx).unwrap();
                         frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
                             .add_sync::<String>(&mut glue.write_silent(), &[]);
-                        web_sys::console::log_1(&"111".into());
                     },
-                    "C"
+                    "ADD"
                 }
                 button {
                     onclick: move |_| {
-                        let glue = use_shared_state::<Database>(cx);
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        let mut glue = glue.write_silent();
+                        let tags = frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
+                            .qtrd(&mut glue);
+                        words.set(
+                            tag1_name.get().to_string() + " " +
+                            &tags.into_iter().map(|(tag, desc, weight)|
+                                    format!("{} | {} | {}", tag, desc.unwrap_or_default(), weight.unwrap_or_default())
+                                ).collect::<Vec<_>>()
+                                .join("\n")
+                        );
                     },
-                    "R"
+                    "QTR"
                 }
                 button {
                     onclick: move |_| {
@@ -81,9 +92,10 @@ fn App(cx: Scope) -> Element {
                         frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
                             .link_sync(&mut glue,
                                 &frictune::Tag::new_with_desc(tag2_name.get(), Some(tag2_desc.get().into()))
-                                , *link.get())
+                                , *link.get());
+                        frictune::logger::warn(link.get().to_string());
                     },
-                    "U"
+                    "LNK"
                 }
                 button {
                     onclick: move |_| {
@@ -92,7 +104,7 @@ fn App(cx: Scope) -> Element {
                         frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
                             .rem_sync(&mut glue);
                     },
-                    "D"
+                    "REM"
                 }
             })
         },

@@ -261,7 +261,8 @@ impl Tag {
             ""
         ).await {
             Ok(things) => {
-                if things.len() != 1 { logger::warn(String::from("other than one queryed")); panic!() }
+                if things.len() != 1 { logger::warn(String::from("other than one queryed"));
+                logger::warn(things.get::<String>(0).join("\n")); panic!() }
                 things.get::<String>(0).get(0).cloned()
             }
             Err(e) => { logger::warn(e.to_string()); panic!() }
@@ -270,5 +271,15 @@ impl Tag {
 
     pub fn qd_sync(&self, db: &mut db::crud::Database) -> Option<String> {
         block_on(async { self.query_desc(db).await })
+    }
+
+    pub fn qtrd(&self, db: &mut db::crud::Database) -> Vec<(String, Option<String>, Option<f32>)> {
+        let tags = self.qtr_sync(db);
+        tags.iter().map(|tag|
+            (
+                tag.into(),
+                Tag::new(tag).qd_sync(db),
+                Tag::query_sync(db, self, &Tag::new(tag))
+            )).collect()
     }
 }

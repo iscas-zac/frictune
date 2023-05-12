@@ -148,14 +148,14 @@ impl Database {
         conn.execute("CREATE TABLE IF NOT EXISTS tags
         (
             tag_name    TEXT PRIMARY KEY NOT NULL,
-            info     TEXT DEFAULT NULL
+            info     TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS relationship
         (
             tag1 TEXT NOT NULL,
             tag2 TEXT NOT NULL,
             weight DECIMAL,
-            is_origin INTEGER DEFAULT false,
+            is_origin BOOLEAN DEFAULT false,
             CONSTRAINT relationship_id1_fk FOREIGN KEY (tag1) REFERENCES tags(tag_name),
             CONSTRAINT relationship_id2_fk FOREIGN KEY (tag2) REFERENCES tags(tag_name),
             CONSTRAINT relation_pk PRIMARY KEY (tag1, tag2)
@@ -174,18 +174,20 @@ impl Database {
     }
 
     pub async fn delete(&mut self, table: &str, entry: &str, data: &str) -> Result<DatabaseResult, DatabaseError> {
+        let query = &format!("DELETE FROM {} WHERE {} = {}", table, entry, data);
+        crate::logger::print(&query);
         self.conn.execute_async(
-            &format!("DELETE FROM {}
-                WHERE {} = {}", table, entry, data)
+            query
         ).await
             .map(|value| DatabaseResult::from(value))
             .map_err(|value| DatabaseError::from(value))
     }
 
     pub async fn read(&mut self, table: &str, entry: &[String], cond: &str, opts: &str) -> Result<DatabaseResult, DatabaseError> {
+        let query = &format!("SELECT {} FROM {} WHERE {} {}", entry.join(", "), table, cond, opts);
+        crate::logger::print(&query);
         self.conn.execute_async(
-            &format!("SELECT {} FROM {}
-                WHERE {} {}", entry.join(", "), table, cond, opts)
+            query
         ).await
             .map(|value| DatabaseResult::from(value))
             .map_err(|value| DatabaseError::from(value))
@@ -193,18 +195,30 @@ impl Database {
     
     pub async fn update(&mut self, table: &str, entry: &[String], data: &[String],
             updated_entry: &[String], updated_data: &[String], cond: &str) -> Result<DatabaseResult, DatabaseError> {
+        let mut same_items = vec![];
+        for (idx, sing_entry) in entry.iter().enumerate() {
+            if updated_entry.iter().find(|ue| ue == &sing_entry).is_some()
+            { same_items.push(format!("{} = {}", sing_entry, data[idx])) }
+        }
+        let mut predicate = same_items.join(" AND ");
+        let query = &format!("INSERT INTO {} ({}) VALUES ({}); {}",
+            table,
+            entry.join(", "),
+            data.join(", "),
+            updated_entry.iter().zip(updated_data).map(|(entry, data)|
+                format!("UPDATE {} SET {} = {} WHERE {} AND {};",
+                    table,
+                    entry,
+                    data,
+                    predicate,
+                    cond
+                )
+            ).collect::<Vec<_>>()
+                .join("\n")
+        );
+        crate::logger::print(&query);
         self.conn.execute_async(
-            &format!("INSERT INTO {} ({}) VALUES ({})
-            ON CONFLICT DO
-            UPDATE SET {}
-            WHERE {};",
-                table,
-                entry.join(", "),
-                data.join(", "),
-                updated_entry.iter().zip(updated_data.iter()).map(|(e, d)|
-                    format!("{} = {}", e, d)).collect::<Vec<_>>().join(", "),
-                cond
-            )
+            query
         ).await
             .map(|value| DatabaseResult::from(value))
             .map_err(|value| DatabaseError::from(value))
