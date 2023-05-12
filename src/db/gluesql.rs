@@ -1,31 +1,17 @@
-use gluesql::{sled_storage::SledStorage, prelude::{Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
+use gluesql::{sled_storage::SledStorage, prelude::{MemoryStorage, Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
 use serde::{Serialize, Deserialize};
-use wasm_bindgen::prelude::wasm_bindgen;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-#[wasm_bindgen]
 pub struct Database {
-    conn: Glue<SledStorage>,
+    conn: Glue<MemoryStorage>,
 }
 
-#[wasm_bindgen]
+/// Database error type wrapper
 #[derive(Debug, thiserror::Error)]
-pub struct DatabaseError {
-    inner: Rc<RefCell<InnerDatabaseError>>,
-}
-
-impl DatabaseError {
-    fn new(inner: InnerDatabaseError) -> DatabaseError {
-        DatabaseError { inner: Rc::new(RefCell::new(inner)) }
-    }
-}
-
-enum InnerDatabaseError {
+pub enum DatabaseError {
     UniqueViolation,
     GlueError(result::Error),
 }
 
+/// Gluesql data type wrapper and converter
 pub trait GlueType {
     fn get_glue_type() -> DataType;
     fn get_content(thing: Value) -> Self;
@@ -69,50 +55,38 @@ impl GlueType for String {
 
 impl std::fmt::Display for DatabaseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match Rc::clone(self.inner).get() {
-            InnerDatabaseError::UniqueViolation => f.write_str("unique violation"),
-            InnerDatabaseError::GlueError(e) => f.write_str(e.to_string().as_str()),
+        match self {
+            Self::UniqueViolation => f.write_str("unique violation"),
+            Self::GlueError(e) => f.write_str(e.to_string().as_str()),
         }
     }
 }
 
-#[wasm_bindgen]
-pub struct DatabaseResult {
-    inner: Rc<RefCell<InnerDatabaseResult>>,
-}
-
-impl DatabaseResult {
-    fn new(inner: InnerDatabaseResult) -> DatabaseResult {
-        DatabaseResult { inner: Rc::new(RefCell::new(inner)) }
-    }
-}
-
-enum InnerDatabaseResult {
+pub enum DatabaseResult {
     Success(String),
     Things(Vec<Row>),
 }
 
 impl From<Vec<Row>> for DatabaseResult {
     fn from(value: Vec<Row>) -> Self {
-        DatabaseResult::new(InnerDatabaseResult::Things(value))
+        DatabaseResult::Things(value)
     }
 }
 
-#[wasm_bindgen]
 impl DatabaseResult {
     pub fn len(&self) -> usize {
-        match Rc::clone(self.inner).get() {
-            InnerDatabaseResult::Success(_) => 0,
-            InnerDatabaseResult::Things(v) =>
+        match self {
+            Self::Success(_) => 0,
+            Self::Things(v) =>
                 v.len()
         }
     }
 
     pub fn get<T: GlueType>(&self, index: usize) -> Vec<T>
     {
-        match Rc::clone(self.inner).get() {
-            InnerDatabaseResult::Success(_) => vec![],
-            InnerDatabaseResult::Things(v) =>
+        match self {
+            Self::Success(_) => vec![],
+            Self::Things(v) =>
                 v.iter().map(|row|
                     T::get_content(
                         row.get_value_by_index(index).unwrap()
@@ -123,31 +97,53 @@ impl DatabaseResult {
     }
 }
 
+
 impl From<Vec<Payload>> for DatabaseResult {
     fn from(values: Vec<Payload>) -> Self {
-        DatabaseResult::new(InnerDatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
+        DatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
             match payload {
                 Payload::Select { labels, rows } => 
                     [acc, rows].concat(),
                 _ => acc,
             }
-        )))
+        ))
     }
 }
 
 impl From<gluesql::core::result::Error> for DatabaseError {
     fn from(value: gluesql::core::result::Error) -> Self {
-        DatabaseError::new(match value {
+        match value {
             gluesql::core::result::Error::Validate(ValidateError::DuplicateEntryOnPrimaryKeyField(k))
-                => InnerDatabaseError::UniqueViolation,
-            other => InnerDatabaseError::GlueError(other),
-        })
+                => DatabaseError::UniqueViolation,
+            other => DatabaseError::GlueError(other),
+        }
     }
 }
 
 impl Database {
-    pub fn sync_new(db_url: &str) -> anyhow::Result<Database> {
-        let storage = SledStorage::new(db_url)?;
+    // pub fn sync_new(db_url: &str) -> anyhow::Result<Database> {
+    //     let storage = SledStorage::new(db_url)?;
+    //     let mut conn = Glue::new(storage);
+    //     conn.execute("CREATE TABLE IF NOT EXISTS tags
+    //     (
+    //         tag_name    TEXT PRIMARY KEY NOT NULL,
+    //         info     TEXT
+    //     );
+    //     CREATE TABLE IF NOT EXISTS relationship
+    //     (
+    //         tag1 TEXT NOT NULL,
+    //         tag2 TEXT NOT NULL,
+    //         weight REAL,
+    //         is_origin INTEGER DEFAULT false,
+    //         CONSTRAINT relationship_id1_fk FOREIGN KEY (tag1) REFERENCES tags(tag_name),
+    //         CONSTRAINT relationship_id2_fk FOREIGN KEY (tag2) REFERENCES tags(tag_name),
+    //         CONSTRAINT relation_pk PRIMARY KEY (tag1, tag2)
+    //     );")?;
+    //     Ok(Database { conn })
+    // }
+
+    pub fn deser_new(content: &[u8]) -> anyhow::Result<Database> {
+        let storage: MemoryStorage = bincode::deserialize(&content[..])?;
         let mut conn = Glue::new(storage);
         conn.execute("CREATE TABLE IF NOT EXISTS tags
         (
@@ -158,7 +154,7 @@ impl Database {
         (
             tag1 TEXT NOT NULL,
             tag2 TEXT NOT NULL,
-            weight REAL,
+            weight DECIMAL,
             is_origin INTEGER DEFAULT false,
             CONSTRAINT relationship_id1_fk FOREIGN KEY (tag1) REFERENCES tags(tag_name),
             CONSTRAINT relationship_id2_fk FOREIGN KEY (tag2) REFERENCES tags(tag_name),
