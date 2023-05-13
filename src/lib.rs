@@ -54,7 +54,7 @@ impl Tag {
         let desc = desc.unwrap_or_default();
         Tag {
             name: format!("'{}'", name),
-            desc: if (!desc.is_empty()) { Some(desc) }
+            desc: if !desc.is_empty() { Some(desc) }
                 else { None },
         }
     }

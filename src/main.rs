@@ -4,8 +4,6 @@ pub mod ui;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod conf;
 
-use frictune::db;
-
 fn main() {
     cfg_if::cfg_if! {
         if #[cfg(not(target_arch = "wasm32"))] {
@@ -13,7 +11,7 @@ fn main() {
                 Ok(config) => config,
                 Err(e) => frictune::logger::rupt(e.to_string().as_str()),
             };
-            let mut conn = match db::crud::Database::sync_new(&settings.db_uri)
+            let mut conn = match frictune::db::crud::Database::sync_new(&settings.db_uri)
             {
                 Ok(conn) => conn,
                 Err(e) => frictune::logger::rupt(e.to_string().as_str()),

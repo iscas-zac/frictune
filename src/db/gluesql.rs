@@ -1,5 +1,5 @@
-use gluesql::{sled_storage::SledStorage, prelude::{MemoryStorage, Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
-use serde::{Serialize, Deserialize};
+use gluesql::{prelude::{MemoryStorage, Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
+
 pub struct Database {
     conn: Glue<MemoryStorage>,
 }
@@ -102,7 +102,7 @@ impl From<Vec<Payload>> for DatabaseResult {
     fn from(values: Vec<Payload>) -> Self {
         DatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
             match payload {
-                Payload::Select { labels, rows } => 
+                Payload::Select { labels: _, rows } => 
                     [acc, rows].concat(),
                 _ => acc,
             }
@@ -113,7 +113,7 @@ impl From<Vec<Payload>> for DatabaseResult {
 impl From<gluesql::core::result::Error> for DatabaseError {
     fn from(value: gluesql::core::result::Error) -> Self {
         match value {
-            gluesql::core::result::Error::Validate(ValidateError::DuplicateEntryOnPrimaryKeyField(k))
+            gluesql::core::result::Error::Validate(ValidateError::DuplicateEntryOnPrimaryKeyField(_k))
                 => DatabaseError::UniqueViolation,
             other => DatabaseError::GlueError(other),
         }
@@ -200,7 +200,7 @@ impl Database {
             if updated_entry.iter().find(|ue| ue == &sing_entry).is_some()
             { same_items.push(format!("{} = {}", sing_entry, data[idx])) }
         }
-        let mut predicate = same_items.join(" AND ");
+        let predicate = same_items.join(" AND ");
         let query = &format!("INSERT INTO {} ({}) VALUES ({}); {}",
             table,
             entry.join(", "),
