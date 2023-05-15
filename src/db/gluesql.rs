@@ -121,31 +121,8 @@ impl From<gluesql::core::result::Error> for DatabaseError {
 }
 
 impl Database {
-    // pub fn sync_new(db_url: &str) -> anyhow::Result<Database> {
-    //     let storage = SledStorage::new(db_url)?;
-    //     let mut conn = Glue::new(storage);
-    //     conn.execute("CREATE TABLE IF NOT EXISTS tags
-    //     (
-    //         tag_name    TEXT PRIMARY KEY NOT NULL,
-    //         info     TEXT
-    //     );
-    //     CREATE TABLE IF NOT EXISTS relationship
-    //     (
-    //         tag1 TEXT NOT NULL,
-    //         tag2 TEXT NOT NULL,
-    //         weight REAL,
-    //         is_origin INTEGER DEFAULT false,
-    //         CONSTRAINT relationship_id1_fk FOREIGN KEY (tag1) REFERENCES tags(tag_name),
-    //         CONSTRAINT relationship_id2_fk FOREIGN KEY (tag2) REFERENCES tags(tag_name),
-    //         CONSTRAINT relation_pk PRIMARY KEY (tag1, tag2)
-    //     );")?;
-    //     Ok(Database { conn })
-    // }
-
-    pub fn deser_new(content: &[u8]) -> anyhow::Result<Database> {
-        let storage: MemoryStorage = bincode::deserialize(&content[..])?;
-        let mut conn = Glue::new(storage);
-        conn.execute("CREATE TABLE IF NOT EXISTS tags
+    fn init_command() -> &'static str {
+        "CREATE TABLE IF NOT EXISTS tags
         (
             tag_name    TEXT PRIMARY KEY NOT NULL,
             info     TEXT DEFAULT ''
@@ -159,7 +136,55 @@ impl Database {
             CONSTRAINT relationship_id1_fk FOREIGN KEY (tag1) REFERENCES tags(tag_name),
             CONSTRAINT relationship_id2_fk FOREIGN KEY (tag2) REFERENCES tags(tag_name),
             CONSTRAINT relation_pk PRIMARY KEY (tag1, tag2)
-        );")?;
+        );"
+    }
+
+    pub fn sync_new(db_url: &str) -> anyhow::Result<Database> {
+        cfg_if::cfg_if! {
+            if #[cfg(not(target_arch = "wasm32"))] {
+                fn get_memory(db_url: &str) -> anyhow::Result<MemoryStorage> {
+                    let mut f = std::fs::OpenOptions::new().read(true).create(true).open(db_url)?;
+                    let mut buf = vec![];
+                    std::io::Read::read_to_end(&mut f, &mut buf)?;
+                    if !buf.is_empty()
+                    { Ok(bincode::deserialize::<MemoryStorage>(&buf[..])?) }
+                    else { anyhow::bail!("file is empty") }
+                }
+                let conn = match get_memory(db_url) {
+                    Ok(ms) => Glue::new(ms),
+                    Err(_) =>  {
+                        let mut conn = Glue::new(MemoryStorage::default());
+                        conn.execute(Self::init_command())?;
+                        conn
+                    }
+                };
+                Ok(Database { conn })
+            }
+            else {
+                anyhow::bail!("wasm mode")
+            }
+        }
+    }
+
+    pub fn save(&self, db_url: &str) -> anyhow::Result<()> {
+        cfg_if::cfg_if! {
+            if #[cfg(not(target_arch = "wasm32"))] {
+                let mut f = std::fs::OpenOptions::new().write(true).create(true).open(db_url)?;
+                let storage = self.conn.storage.clone();
+                let buf = bincode::serialize(&storage)?;
+                std::io::Write::write_all(&mut f, &buf)?;
+                Ok(())
+            }
+            else {
+                anyhow::bail!("wasm mode")
+            }
+        }
+    }
+
+    pub fn deser_new(content: &[u8]) -> anyhow::Result<Database> {
+        let storage: MemoryStorage = bincode::deserialize(&content[..])?;
+        let mut conn = Glue::new(storage);
+        conn.execute(Self::init_command())?;
         Ok(Database { conn })
     }
 
