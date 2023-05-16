@@ -76,7 +76,9 @@ fn handle_all(global_template: &str,
     let mut content = content.split("\r\n\r\n");
     let title = content.next().unwrap_or_default();
     let mut content = content
-        .map(|s| format!("<p>{}</p>", s.trim()))
+        .map(|s| if s.starts_with("###")
+            { s.trim().strip_prefix("###").unwrap().trim().into() }
+            else {format!("<p>{}</p>", s.trim())})
         .collect::<Vec<_>>()
         .join("\n");
 
