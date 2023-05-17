@@ -10,7 +10,12 @@ impl ::std::default::Default for Conf {
 }
 
 /// Get a configuration value from the file.
-pub fn read_config() -> Result<Conf, confy::ConfyError> {
-    let cfg: Conf = confy::load("./settings/settings.toml", None)?;
-    Ok(cfg)
+pub fn read_config() -> anyhow::Result<Conf> {
+    let local_path = std::env::current_dir()?.join("settings");
+    if let Some(path_str) = local_path.to_str()
+    {
+        let cfg: Conf = confy::load(path_str, "path")?;
+        Ok(cfg)
+    }
+    else { anyhow::bail!("path to ascii str fail") }
 }
