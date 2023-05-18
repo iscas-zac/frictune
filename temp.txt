@@ -3,3 +3,5 @@ mimik
 在 GitHub 上看到了 {{ lazygit "https://github.com/jesseduffield/lazygit" (git "https://git-scm.com/" 0.8) ("user interface" 0.8) (GitHub 0.8) (20230504) }}，看了一下是 GitHub 上非官方 git 扩展中最多 star 的，安装了一个试试看。
 
 在阮一峰周刊上看到了 {{ run-out-of-ml-data "https://epochai.org/blog/will-we-run-out-of-ml-data-evidence-from-projecting-dataset" (creative 0.7) ("machine learning" "https://en.wikipedia.org/wiki/Machine_learning" 0.8) (ruanyf 0.8) (20230505) ("academic paper" 0.8) }}，认为几年至几十年后制约大模型发展的会是数据量，这倒是个新奇的思路。
+
+同样是在 V2EX 上看到的 {{ "只读链接" "https://readonly.link/" (V2EX "https://www.v2ex.com/" 0.8) (20230518) (Markdown "https://daringfireball.net/projects/markdown/" 0.6) (blog 0.5) (Vue "https://vuejs.org/" 0.7) }}，看起来很有意思，改天试试看。

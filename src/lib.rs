@@ -102,7 +102,7 @@ impl Tag {
                     else { logger::warn(e.to_string()); panic!() }
                 },
             }
-            logger::watch(self.link_tags(db, &k.get_name(), *v).await);
+            logger::watch(self.link_tags(db, k, *v).await);
             self.auto_update_links(db).await;
         }
 

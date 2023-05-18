@@ -45,17 +45,20 @@ const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 /// The whole stuff will be fit into a template in the file
 /// `./template.hbs`.
 fn main() {
-    let mut args = std::env::args(); args.next();
-    let template_url = std::env::args().next().unwrap_or("./template.hbs".into());
-    let content_url = std::env::args().next().unwrap_or("./temp.txt".into());
-    let database_url = std::env::args().next().unwrap_or("./tags.db".into());
-    let output_name = std::env::args().next().unwrap_or("b.html".into());
+    let mut args = std::env::args();
+    while let Some(e) = args.next() {
+        if e.contains("tune_html") { break }
+    }
+    let template_url = args.next().unwrap_or("./template.hbs".into());
+    let content_url = args.next().unwrap_or("./temp.txt".into());
+    let database_url = args.next().unwrap_or("./tags.db".into());
+    let output_name = args.next().unwrap_or("b.html".into());
     match handle_all(&template_url,
         &content_url,
         &database_url,
         &output_name) {
         Ok(_) => {},
-        Err(e) => { println!("{}", e); }
+        Err(e) => { frictune::logger::rupt(&e.to_string()); }
     }
     
 }
@@ -108,7 +111,7 @@ fn handle_all(global_template: &str,
             name.replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)
         )).into();
     }
-    println!("{}", content);
+    frictune::logger::print(&content);
     reg.register_template_string("content", content)?;
 
     // construct the json from database
@@ -120,7 +123,7 @@ fn handle_all(global_template: &str,
         "name": title,
     });
     construct_json_from_database(&mut env_json, tags, db_conn);
-    println!("{}", env_json);
+    frictune::logger::print(&env_json.to_string());
     reg.render_to_write("page", &env_json, File::create(out_file)?)?;
     //println!("{}", reg.render("page", &env_json)?);
 
@@ -171,6 +174,7 @@ fn extract_tags(content: &String, db_conn: &str) -> Vec<frictune::Tag> {
                                 _ => { frictune::logger::rupt(&format!("brace_inner is {}", brace_inner.as_str())); }
                             }
                         }
+                        // if not empty, push into trailers
                         if !trailing_tag.name.contains("''") {
                             trailers.push((trailing_tag, num as f32));
                         }
@@ -197,7 +201,7 @@ fn construct_json_from_database(json: &mut serde_json::Value, tags: Vec<frictune
         json[main_tag.name.trim_matches('\'').replace(" ", HANDLEBARS_BLANK_ESCAPE_TO)] = main_tag.qtr_sync(&mut conn)
             .iter()
             .map(|s| {
-                println!("{}", s);
+                frictune::logger::print(s);
                 let desc = frictune::Tag::new(s).qd_sync(&mut conn).unwrap_or("".into());
                 serde_json::json!({
                     "name": s,

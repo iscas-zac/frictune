@@ -111,8 +111,10 @@ impl Database {
     }
     
     pub async fn create(&mut self, table: &str, entry: &[String], data: &[String]) -> Result<DatabaseResult, DatabaseError> {
+        let query = format!("INSERT INTO {} ({}) VALUES({});", table, entry.join(", "), data.join(", "));
+        crate::logger::print(&query);
         sqlx::query(
-            &format!("INSERT INTO {} ({}) VALUES({});", table, entry.join(", "), data.join(", "))
+            &query
         ).execute(&mut self.conn)
             .await
             .map(|value| DatabaseResult::from(value))
@@ -120,9 +122,11 @@ impl Database {
     }
 
     pub async fn delete(&mut self, table: &str, entry: &str, data: &str) -> Result<DatabaseResult, DatabaseError> {
+        let query = format!("DELETE FROM {}
+        WHERE {} = {}", table, entry, data);
+        crate::logger::print(&query);
         sqlx::query(
-            &format!("DELETE FROM {}
-                WHERE {} = {}", table, entry, data)
+            &query
         ).execute(&mut self.conn)
             .await
             .map(|value| DatabaseResult::from(value))
@@ -130,9 +134,11 @@ impl Database {
     }
 
     pub async fn read(&mut self, table: &str, entry: &[String], cond: &str, opts: &str) -> Result<DatabaseResult, DatabaseError> {
+        let query = format!("SELECT {} FROM {}
+        WHERE {} {}", entry.join(", "), table, cond, opts);
+        crate::logger::print(&query);
         sqlx::query(
-            &format!("SELECT {} FROM {}
-                WHERE {} {}", entry.join(", "), table, cond, opts)
+            &query
         ).fetch_all(&mut self.conn)
             .await
             .map(|value| DatabaseResult::from(value))
@@ -141,18 +147,20 @@ impl Database {
     
     pub async fn update(&mut self, table: &str, entry: &[String], data: &[String],
             updated_entry: &[String], updated_data: &[String], cond: &str) -> Result<DatabaseResult, DatabaseError> {
+        let query = format!("INSERT INTO {} ({}) VALUES ({})
+        ON CONFLICT DO
+        UPDATE SET {}
+        WHERE {};",
+            table,
+            entry.join(", "),
+            data.join(", "),
+            updated_entry.iter().zip(updated_data.iter()).map(|(e, d)|
+                format!("{} = {}", e, d)).collect::<Vec<_>>().join(", "),
+            cond
+        );
+        crate::logger::print(&query);
         sqlx::query(
-            &format!("INSERT INTO {} ({}) VALUES ({})
-            ON CONFLICT DO
-            UPDATE SET {}
-            WHERE {};",
-                table,
-                entry.join(", "),
-                data.join(", "),
-                updated_entry.iter().zip(updated_data.iter()).map(|(e, d)|
-                    format!("{} = {}", e, d)).collect::<Vec<_>>().join(", "),
-                cond
-            )
+            &query
         ).execute(&mut self.conn)
             .await
             .map(|value| DatabaseResult::from(value))
