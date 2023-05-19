@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use gluesql::{prelude::{MemoryStorage, Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
 
 pub struct Database {
@@ -47,6 +49,18 @@ impl GlueType for String {
     }
     fn get_content(thing: Value) -> Self {
         if let Value::Str(content) = thing {
+            content
+        }
+        else { Self::default() }
+    }
+}
+
+impl GlueType for bool {
+    fn get_glue_type() -> DataType {
+        DataType::Boolean
+    }
+    fn get_content(thing: Value) -> Self {
+        if let Value::Bool(content) = thing {
             content
         }
         else { Self::default() }
@@ -143,7 +157,7 @@ impl Database {
         cfg_if::cfg_if! {
             if #[cfg(not(target_arch = "wasm32"))] {
                 fn get_memory(db_url: &str) -> anyhow::Result<MemoryStorage> {
-                    let mut f = std::fs::OpenOptions::new().read(true).create(true).open(db_url)?;
+                    let mut f = std::fs::OpenOptions::new().read(true).write(true).create(true).open(db_url)?;
                     let mut buf = vec![];
                     std::io::Read::read_to_end(&mut f, &mut buf)?;
                     if !buf.is_empty()
@@ -170,7 +184,8 @@ impl Database {
         cfg_if::cfg_if! {
             if #[cfg(not(target_arch = "wasm32"))] {
                 let mut f = std::fs::OpenOptions::new().write(true).create(true).open(db_url)?;
-                let storage = self.conn.storage.clone();
+                let storage = match self.conn.storage.clone()
+                { Some(s) => s, None => anyhow::bail!("no storage")};
                 let buf = bincode::serialize(&storage)?;
                 std::io::Write::write_all(&mut f, &buf)?;
                 Ok(())
