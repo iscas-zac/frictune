@@ -282,4 +282,17 @@ impl Tag {
                 Tag::query_sync(db, self, &Tag::new(tag))
             )).collect()
     }
+
+    pub fn get_tags(db: &mut db::crud::Database) -> Vec<String> {
+        block_on(async {
+            db.read(
+                "tags", 
+                &[String::from("tag_name")], 
+                &format!("true"),
+                ""
+            ).await
+            .map(|thing| thing.get::<String>(0))
+            .unwrap_or_default()
+        })
+    }
 }

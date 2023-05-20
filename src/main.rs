@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-#[cfg(not(target_arch = "wasm32"))]
 pub mod ui;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod conf;
@@ -35,13 +34,19 @@ fn App(cx: Scope) -> Element {
 
     let temp =
         use_future(&cx, (), |_| async move {
-            let response = gloo::net::http::Request::get("/gluesql").send().await
+            let response = gloo::net::http::Request::get("/tags.gluesql1").send().await
                 .unwrap();
             response.binary().await.unwrap_or_default()
         });
     match temp.value() {
         Some(response) => {
-            let glue = Database::deser_new(response).unwrap();
+            // frictune::logger::print(&format!("{:?}", String::from_utf8(response.clone())));
+            // frictune::logger::print(&format!("{:?}", response));
+            // frictune::logger::print(&format!("{:?}", 
+            //     bincode::serialize(
+            //         &gluesql::memory_storage::MemoryStorage::default()).unwrap()));
+
+            let mut glue = Database::deser_new(response).unwrap();
             use_shared_state_provider(cx, || glue);
 
             let tag1_name = use_state(cx, || "abc".to_string());
@@ -50,6 +55,12 @@ fn App(cx: Scope) -> Element {
             let tag2_desc = use_state(cx, || "".to_string());
             let link = use_state(cx, || 0.0);
             let words = use_state(cx, || "".to_string());
+
+            let glue = use_shared_state::<Database>(cx).unwrap();
+            // ui::graph::d3play(&mut glue.write_silent());
+            let glue = use_shared_state::<Database>(cx).unwrap();
+            let nodes = ui::graph::export_nodes_json(&mut glue.write_silent());
+            let links = ui::graph::export_links_json(&mut glue.write_silent());
 
             cx.render(rsx! {
                 
@@ -103,6 +114,20 @@ fn App(cx: Scope) -> Element {
                             .rem_sync(&mut glue);
                     },
                     "REM"
+                }
+                div {
+                    id: "nodes",
+                    hidden: "true",
+                    "{nodes}"
+                }
+                div {
+                    id: "links",
+                    hidden: "true",
+                    "{links}"
+                }
+                script {
+                    "type": "module",
+                    src: "/draw.js?a=111"
                 }
             })
         },
