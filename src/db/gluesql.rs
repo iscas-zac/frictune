@@ -2,6 +2,8 @@ use std::io::Read;
 
 use gluesql::{prelude::{MemoryStorage, Glue, Payload, Row, DataType, Value}, core::{executor::ValidateError, result}};
 
+use crate::logger;
+
 pub struct Database {
     conn: Glue<MemoryStorage>,
 }
@@ -233,6 +235,7 @@ impl Database {
             .map_err(|value| DatabaseError::from(value))
     }
     
+    // TODO: split the sqls, the gluesql fails all if failing first
     pub async fn update(&mut self, table: &str, entry: &[String], data: &[String],
             updated_entry: &[String], updated_data: &[String], cond: &str) -> Result<DatabaseResult, DatabaseError> {
         let mut same_items = vec![];
