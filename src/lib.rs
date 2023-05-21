@@ -143,7 +143,7 @@ impl Tag {
                         continue
                     } else {
                         things.get::<String>(0).into_iter().zip(
-                            things.get::<f32>(1)
+                            things.get::<f32>(2)
                         )
                     }
                 }
