@@ -116,13 +116,17 @@ impl DatabaseResult {
 
 impl From<Vec<Payload>> for DatabaseResult {
     fn from(values: Vec<Payload>) -> Self {
-        DatabaseResult::Things(values.into_iter().fold(vec![], |acc, payload|
+        let rows = values.into_iter().fold(vec![], |acc, payload|
             match payload {
                 Payload::Select { labels: _, rows } => 
                     [acc, rows].concat(),
                 _ => acc,
             }
-        ))
+        );
+        // TODO: improve error hint
+        if rows.len() == 0 { DatabaseResult::Success(
+            "success".to_string()
+        ) } else { DatabaseResult::Things(rows) }
     }
 }
 
@@ -216,7 +220,7 @@ impl Database {
     }
 
     pub async fn delete(&mut self, table: &str, entry: &str, data: &str) -> Result<DatabaseResult, DatabaseError> {
-        let query = &format!("DELETE FROM {} WHERE {} = {}", table, entry, data);
+        let query = &format!("DELETE FROM {} WHERE {} = {};", table, entry, data);
         crate::logger::print(&query);
         self.conn.execute_async(
             query
@@ -235,20 +239,29 @@ impl Database {
             .map_err(|value| DatabaseError::from(value))
     }
     
-    // TODO: split the sqls, the gluesql fails all if failing first
     pub async fn update(&mut self, table: &str, entry: &[String], data: &[String],
             updated_entry: &[String], updated_data: &[String], cond: &str) -> Result<DatabaseResult, DatabaseError> {
-        let mut same_items = vec![];
+        // find the same part between entry and update_entry,
+        // which is the conflict and can be used to query
+        let mut keys = vec![];
         for (idx, sing_entry) in entry.iter().enumerate() {
-            if updated_entry.iter().find(|ue| ue == &sing_entry).is_some()
-            { same_items.push(format!("{} = {}", sing_entry, data[idx])) }
+            if updated_entry.iter().find(|ue| ue == &sing_entry).is_none()
+            { keys.push(format!("{} = {}", sing_entry, data[idx])) }
         }
-        let predicate = same_items.join(" AND ");
-        let query = &format!("INSERT INTO {} ({}) VALUES ({}); {}",
+        let predicate = keys.join(" AND ");
+        let query = &format!("INSERT INTO {} ({}) VALUES ({});",
             table,
             entry.join(", "),
             data.join(", "),
-            updated_entry.iter().zip(updated_data).map(|(entry, data)|
+        );
+        crate::logger::print(&query);
+        let res = self.conn.execute_async(
+            query
+        ).await
+            .map(|value| DatabaseResult::from(value))
+            .map_err(|value| DatabaseError::from(value));
+        if let Err(DatabaseError::UniqueViolation) = res {
+            let query = updated_entry.iter().zip(updated_data).map(|(entry, data)|
                 format!("UPDATE {} SET {} = {} WHERE {} AND {};",
                     table,
                     entry,
@@ -257,13 +270,96 @@ impl Database {
                     cond
                 )
             ).collect::<Vec<_>>()
-                .join("\n")
-        );
-        crate::logger::print(&query);
-        self.conn.execute_async(
-            query
-        ).await
-            .map(|value| DatabaseResult::from(value))
-            .map_err(|value| DatabaseError::from(value))
+                .join("\n");
+            crate::logger::print(&query);
+            self.conn.execute_async(
+                query
+            ).await
+                .map(|value| DatabaseResult::from(value))
+                .map_err(|value| DatabaseError::from(value))
+        } else { res }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::executor::block_on;
+    use gluesql::prelude::{Glue, MemoryStorage};
+    use crate::db::gluesql::{Database, DatabaseResult, DatabaseError};
+
+    #[test]
+    fn test_database_result() {
+        let mut db = Glue::new(MemoryStorage::default());
+        let create_res = db.execute(
+            "CREATE TABLE test (key TEXT PRIMARY KEY NOT NULL);"
+        ).unwrap();
+        db.execute(
+            "INSERT INTO test (key) VALUES ('1');"
+        ).unwrap();
+        let query_res = DatabaseResult::from(db.execute(
+            "SELECT * FROM test;"
+        ).unwrap());
+        assert!(matches!(DatabaseResult::from(create_res), DatabaseResult::Success(_)));
+        assert_eq!(query_res.len(), 1);
+        assert_eq!(query_res.get::<String>(0), vec!['1'.to_string()]);
+    }
+
+    #[test]
+    fn test_database_error() {
+        let mut db = Glue::new(MemoryStorage::default());
+        db.execute(
+            "CREATE TABLE test (key TEXT PRIMARY KEY NOT NULL);"
+        ).unwrap();
+        db.execute(
+            "INSERT INTO test (key) VALUES ('1');"
+        ).unwrap();
+        let double_insert_res = db.execute(
+            "INSERT INTO test (key) VALUES ('1');"
+        ).err().unwrap();
+        let wrong_command_res = db.execute(
+            "1111"
+        ).err().unwrap();
+        assert!(matches!(DatabaseError::from(double_insert_res), DatabaseError::UniqueViolation));
+        assert!(matches!(DatabaseError::from(wrong_command_res), DatabaseError::GlueError(_)));
+    }
+
+    #[test]
+    fn test_crud() {
+        let mut db = Database::sync_new("aaa").unwrap();
+        let entry = ["tag_name".to_string(), "info".to_string()];
+        // insert a record ('11', '22')
+        assert!(matches!(
+            block_on(async { db.create("tags", &entry, &["'11'".to_string(), "'22'".to_string()]).await }),
+            Ok(DatabaseResult::Success(_))
+        ), "create failed");
+        
+        assert!(matches!(
+            block_on(async { db.read("tags", &entry[..1], "true", "").await }),
+            Ok(DatabaseResult::Things(_))
+        ), "read failed");
+
+        // insert another record ('111', '33')
+        let mut data = ["'111'".to_string(), "'33'".to_string()];
+        assert!(matches!(
+            block_on(async { db.update("tags", &entry, &data, &entry[1..], &data[1..], "true").await }),
+            Ok(DatabaseResult::Success(_))
+        ), "update insert failed");
+        // mutate ('11', '22') to ('11', '33')
+        data[0] = "'11'".to_string();
+        assert!(matches!(
+            block_on(async { db.update("tags", &entry, &data, &entry[1..], &data[1..], "true").await }),
+            Ok(DatabaseResult::Success(_))
+        ), "partial update failed");
+        let things = block_on(async { db.read("tags", &entry, "true", "").await }).unwrap();
+        // check both record has `info` field equal to '33'
+        assert_eq!(
+            things.get::<String>(1),
+            vec!["33", "33"],
+        "update not effective");
+
+        assert!(matches!(
+            block_on(async { db.delete("tags", "tag_name", "'aaa'").await }),
+            Ok(DatabaseResult::Success(_))
+        ), "delete failed");
     }
 }
