@@ -184,6 +184,16 @@ impl Tag {
         Tag::update_all_links(db).await;
     }
 
+    pub async fn modify_tag(&self, db: &mut db::crud::Database, desc: &str) -> Result<DatabaseResult, DatabaseError> {
+        let entry = ["tag_name".to_string(), "info".to_string()];
+        let data = [self.get_name(), desc.into()];
+        db.update("tags", &entry, &data, &entry[1..], &data[1..], "true").await
+    }
+
+    pub fn mod_sync(&self, db: &mut db::crud::Database, desc: &str) {
+        block_on(async { watch(self.modify_tag(db, desc).await) });
+    }
+
     pub async fn remove_tag(&self, db: &mut db::crud::Database) -> Result<DatabaseResult, DatabaseError> {
         let res1 = db.delete("relationship", "tag1", &self.name).await;
         let res2 = db.delete("relationship", "tag2", &self.name).await;

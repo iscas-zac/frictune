@@ -58,12 +58,9 @@ fn App(cx: Scope) -> Element {
 
             let glue = use_shared_state::<Database>(cx).unwrap();
             // ui::graph::d3play(&mut glue.write_silent());
-            let glue = use_shared_state::<Database>(cx).unwrap();
-            let nodes = ui::graph::export_nodes_json(&mut glue.write_silent());
-            let links = ui::graph::export_links_json(&mut glue.write_silent());
-
+            let nodes = use_state(cx, || ui::graph::export_nodes_json(&mut glue.write_silent()));
+            let links = use_state(cx, || ui::graph::export_links_json(&mut glue.write_silent()));
             cx.render(rsx! {
-                
                 input { value: "{tag1_name}", oninput: |e| tag1_name.set(e.value.clone()) },
                 input { value: "{tag1_desc}", oninput: |e| tag1_desc.set(e.value.clone()) },
                 input { value: "{tag2_name}", oninput: |e| tag2_name.set(e.value.clone()) },
@@ -115,19 +112,33 @@ fn App(cx: Scope) -> Element {
                     },
                     "REM"
                 }
-                div {
-                    id: "nodes",
-                    hidden: "true",
-                    "{nodes}"
+                button {
+                    onclick: move |_| {
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        let mut glue = glue.write_silent();
+                        frictune::Tag::new_with_desc(tag1_name.get(), Some(tag1_desc.get().into()))
+                            .mod_sync(&mut glue, tag1_desc.get());
+                    },
+                    "MOD"
                 }
-                div {
-                    id: "links",
-                    hidden: "true",
-                    "{links}"
+                button {
+                    onclick: move |_| {
+                        let glue = use_shared_state::<Database>(cx).unwrap();
+                        let mut glue = glue.write_silent();
+                        let tag_name = tag1_name.get();
+                        let (new_nodes, new_links) = ui::graph::export_succ_json(tag_name, &mut glue);
+                        nodes.set(new_nodes);
+                        links.set(new_links);
+                    },
+                    "REDRAW"
                 }
-                script {
-                    "type": "module",
-                    src: "/draw.js?a=111"
+                button {
+                    id: "redraw",
+                    "AAAAAAAAAAAAAAAAAAAAAAAAAAA!"
+                }
+                ui::graph::inspect_graph {
+                    nodes: nodes.get(),
+                    links: links.get(),
                 }
             })
         },

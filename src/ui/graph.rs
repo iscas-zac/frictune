@@ -1,3 +1,5 @@
+use dioxus::prelude::rsx;
+
 #[derive(serde::Serialize)]
 struct Node {
     id: String,
@@ -23,6 +25,21 @@ pub fn export_nodes_json(db: &mut frictune::db::crud::Database) -> String {
 }
 
 #[cfg(target_arch = "wasm32")]
+pub fn export_succ_json(tag_name: &str, db: &mut frictune::db::crud::Database) -> (String, String) {
+    let this_tag = frictune::Tag::new(tag_name);
+    let tag_names = this_tag.qtrd(db);
+    let (mut nodes, links): (Vec<_>, Vec<_>) = tag_names.iter()
+        .map(|(name, desc, weight)| {
+            (
+                Node { id: name.into(), desc: desc.clone().unwrap_or_default() },
+                Link { source: tag_name.into(), target: name.into(), strength: weight.unwrap_or_default() },
+            )
+        }).unzip();
+    nodes.push(Node { id: tag_name.into(), desc: this_tag.qd_sync(db).unwrap_or_default() });
+    (serde_json::to_string(&nodes).unwrap(), serde_json::to_string(&links).unwrap())
+}
+
+#[cfg(target_arch = "wasm32")]
 pub fn export_links_json(db: &mut frictune::db::crud::Database) -> String {
     let tag_names = frictune::Tag::get_tags(db);
     serde_json::to_string(&tag_names.iter()
@@ -33,6 +50,32 @@ pub fn export_links_json(db: &mut frictune::db::crud::Database) -> String {
             }).collect::<Vec<_>>()
         }).collect::<Vec<_>>()
     ).unwrap()
+}
+
+use dioxus::prelude::*;
+#[derive(PartialEq, Props)]
+pub struct GraphProps {
+    #[props(into)]
+    nodes: String,
+    #[props(into)]
+    links: String,
+}
+pub fn inspect_graph(cx: Scope<GraphProps>) -> Element {
+    cx.render(rsx! {
+        div {
+            id: "nodes",
+            hidden: "true",
+            "{cx.props.nodes}"
+        }
+        div {
+            id: "links",
+            hidden: "true",
+            "{cx.props.links}"
+        }
+        script {
+            src: "/draw.js?a=2333"
+        }
+    })
 }
 
 #[cfg(target_arch = "wasm32")]
