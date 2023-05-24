@@ -1,0 +1,21 @@
+[application]
+
+name = "{{project-name}}"
+
+default_platform = "web"
+
+asset_dir = "webpage_asset"
+
+[web.app]
+
+title = "tag visualized"
+
+[web.watcher]
+
+[web.resource]
+
+style = []
+
+script = ["https://d3js.org/d3.v7.min.js"]
+
+[web.resource.dev]
