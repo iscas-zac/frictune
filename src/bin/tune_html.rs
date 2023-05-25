@@ -15,6 +15,8 @@ pub struct TagParser;
 /// the space with this symbol
 const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 
+/// # Usage
+/// 
 /// The program read something in a `temp.txt` file like
 /// ```
 /// **any text** {{foo "https://example.com" (bar 0.5)}} **other text**
@@ -23,7 +25,8 @@ const HANDLEBARS_BLANK_ESCAPE_TO: &str = "ß";
 /// The rules of the format are as follows.
 /// 0. the first line will be set as the title.
 /// 1. every paragraph separated by two newlines are
-///     embraced with `<p></p>`;
+///     embraced with `<p></p>`, except when the line begins
+///     with '***';
 /// 2. every paragraph has zero or more `{{TEXT}}` and other plain
 ///     html things.
 /// 3. the TEXT has a leading word, which can be double quoted

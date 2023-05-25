@@ -64,14 +64,15 @@ impl Tag {
     /// # Examples
     /// 
     /// ```
-    /// async {
-    ///     let mut conn = db::crud::Db::new("./sample.db").await.unwrap();
-    ///     let sample = frictune::Tag { name: "sample", desc: None };
-    ///     sample.add_tag(db, HashMap::new()).await;
-    ///     let sample2 = frictune::Tag { name: "sample2", desc: None };
-    ///     sample2.add_tag(db, HashMap::from([(String::from("sample"), 0.4)]));
-    ///     assert_eq!(sample2.query_relation(db).unwrap(), 0.4);
-    /// }
+    /// use std::collections::HashMap;
+    /// futures::executor::block_on(async {
+    ///     let mut conn = frictune::db::crud::Database::new("./sample.db").await.unwrap();
+    ///     let sample = frictune::Tag { name: "'sample'".to_string(), desc: None };
+    ///     sample.add_tag::<String>(&mut conn, &[]).await;
+    ///     let sample2 = frictune::Tag { name: "'sample2'".to_string(), desc: None };
+    ///     sample2.add_tag(&mut conn, &[(String::from("sample"), 0.4)]).await;
+    ///     assert_eq!(frictune::Tag::query_relation(&mut conn, &sample2, &sample).await.unwrap(), 0.4);
+    /// });
     /// ```
     pub async fn add_tag<T: MakeTag>(&self, db: &mut db::crud::Database, name_weight_pairs: &[(T, f32)]) -> Result<DatabaseResult, DatabaseError> {
         match if let Some(words) = self.desc.clone() {

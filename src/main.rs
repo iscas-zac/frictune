@@ -19,7 +19,7 @@ fn main() {
         }
         else {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Warn).expect("无法初始化日志库");
+            console_log::init_with_level(log::Level::Warn).expect("logger library is not enabled");
             dioxus_web::launch(App);
 
         }
