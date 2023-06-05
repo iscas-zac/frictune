@@ -37,6 +37,39 @@ Currently, I implement the main APIs on the webpage with no further wrappers. Ru
 
 ## Architecture (WIP)
 
+There are roughly three layers in the codebase, the database layer,
+the tag operation layer and the user interface layer, essentially
+the frontend/backend partition.
+
+The tag operation layer binds the database and the user interface layer,
+and provides the APIs to the user interface layer. For now it sits
+in `lib.rs` and consists simply of the `frictune::Tag` functions.
+
+The database can switch between GlueSQL and SQLite bindings (the
+`crud/gluesql::Database` struct), as a result of multi-target
+support. They are switched by condition macros, which also results
+in some problems.
+
+The user interface layer also support two targets for now, the CLI
+application and the webpage. The CLI application `frictune` can add,
+delete, query information about and modify a tag. It comes with two
+companions (in `/bin` for now), `database_mig` can read a SQLite
+database and construct a GlueSQL database accordingly, and `tune_html`
+can read a Handlebars-like format to give a webpage demo.
+
+The webpage also implements the simple data manipulations (but can not
+write back to local files), and can draw graphs according to the data.
+The graph is currently drawn by [D3.js](https://d3js.org/) and [d3-force](https://github.com/d3/d3-force).
+
+TL; DR: the architecture is like this,
+
+
+| CLI(frictune (basic)/tune_html (reader)/database_mig (compat)) | webpage |
+
+| frictune::Tag |
+
+| GlueSQL | SQLite |
+
 ## current APIs (WIP)
 
 `pub fn add_sync(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>`: add a tag to the database, with an option to initialize the links with the `weight` parameter.
