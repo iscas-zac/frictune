@@ -60,6 +60,9 @@ impl Tag {
     }
     /// Add a tag to the database.
     /// A series of tag/weight pairs can follow to initialize the mutual link weights.
+    /// They will first be added to the database if not existing.
+    /// The tags can be described by a struct implementing [`frictune::MakeTag`]
+    /// trait (either a [`frictune::Tag`] or a [`String`] for now).
     /// 
     /// # Examples
     /// 
@@ -116,7 +119,11 @@ impl Tag {
         block_on(async { watch(self.add_tag(db, name_weight_pairs).await) });
     }
 
-    /// Updates the autonomous links between tags
+    /// Updates the autonomous links between this tag and other tags.
+    /// The autonomous link weight is a product of existent weights.
+    /// 
+    /// # Example (TODO)
+    /// 
     pub async fn auto_update_links(&self, db: &mut db::crud::Database) {
         // TODO: a reverse-way propagation
         let affected_tags: Vec<(String, f32)> = match db.read(
@@ -168,6 +175,10 @@ impl Tag {
         }
     }
 
+    /// > **WARNING**
+    /// 
+    /// The function does not recursively update all links, which
+    /// means some links are not properly updated.
     pub async fn update_all_links(db: &mut db::crud::Database) {
         for name in match db.read(
             "tags",
@@ -206,6 +217,13 @@ impl Tag {
         block_on(async { watch(self.remove_tag(db).await) });
     }
 
+    /// link this tag to another tag with weight `ratio`. The `target`
+    /// tag is a generic type.
+    /// 
+    /// > **WARNING**
+    /// 
+    /// This function does not check the tags's existence. Be sure to
+    /// add them first.
     pub async fn link_tags<T: MakeTag>(&self, db: &mut db::crud::Database, target: &T, ratio: f32) -> Result<DatabaseResult, DatabaseError> {
         let entries = [String::from("tag1"), String::from("tag2"), String::from("weight"), String::from("is_origin")];
         let data = [self.name.clone(), format!("{}", target.get_name()), ratio.to_string(), String::from("true")];

@@ -72,17 +72,30 @@ TL; DR: the architecture is like this,
 
 ## current APIs (WIP)
 
-`pub fn add_sync(&self, db: &mut db::crud::Db, weights: HashMap<String, f32>) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>`: add a tag to the database, with an option to initialize the links with the `weight` parameter.
+The main APIs are the tag functions in `lib.rs`. They communicate
+with underlying database wrappers and give query results.
 
-`pub async fn update_all_links(db: &mut db::crud::Db)`: update the links with a formula. Some link weights are designated by the user, the others will be inferred. (effectiveness in progress)
+For now, some of the functions have sync and async versions, of
+which the sync ones have 'sync' in their names.
 
-The other functions should speak for themselves.
+The input values of them are usually a mutable reference of the
+database and a tag, and the return values vary. I have not decided
+whether to return some `Result`s through the APIs.
+
+As to usages, `frictune` can add, delete, query about a tag, and
+add new link between tags for now.
+
+> **Warning**
+
+The APIs are far from stable for now.
 
 ## TODOs
 
 ### Next step
 
-Web UI: interaction and representation
+Web UI: better presentation
+Documentation improvement
+Testcases
 
 ### Others
 
