@@ -175,6 +175,9 @@ impl Tag {
         }
     }
 
+    /// The function will apply [`frictune::Tag::auto_update_links`]
+    /// to all tags. It's async.
+    /// 
     /// > **WARNING**
     /// 
     /// The function does not recursively update all links, which
@@ -196,6 +199,11 @@ impl Tag {
         Tag::update_all_links(db).await;
     }
 
+    /// A tag in the database contains usually a name and its descriptions,
+    /// and the descriptions can be updated. Usually the descriptions serve
+    /// as a hyperlink on the web.
+    /// 
+    /// This function can modify the description of this tag.
     pub async fn modify_tag(&self, db: &mut db::crud::Database, desc: &str) -> Result<DatabaseResult, DatabaseError> {
         let entry = ["tag_name".to_string(), "info".to_string()];
         let data = [self.get_name(), desc.into()];
@@ -265,6 +273,8 @@ impl Tag {
         block_on(async { Tag::query_relation(db, tag1, tag2).await })
     }
 
+    /// This function retrieves all tags with a non-zero weight link
+    /// with this tag, ordered descendently.
     pub async fn query_top_related(&self, db: &mut db::crud::Database) -> Vec<String> {
         match db.read(
             "relationship",
@@ -278,6 +288,7 @@ impl Tag {
         }
     }
 
+    /// The sync version of [`frictune::Tag::query_top_related`].
     pub fn qtr_sync(&self, db: &mut db::crud::Database) -> Vec<String> {
         block_on(async { self.query_top_related(db).await })
     }
@@ -298,10 +309,15 @@ impl Tag {
         }
     }
 
+    /// The sync version of [`frictune::Tag::query_desc`].
     pub fn qd_sync(&self, db: &mut db::crud::Database) -> Option<String> {
         block_on(async { self.query_desc(db).await })
     }
 
+    /// A sync function that combines [`frictune::Tag::qtr_sync`] and
+    /// [`frictune::Tag::qd_sync`]. It returns a vec of 3-tuples, of
+    /// tag name, optional tag descriptions and optional weights with
+    /// this tag.
     pub fn qtrd(&self, db: &mut db::crud::Database) -> Vec<(String, Option<String>, Option<f32>)> {
         let tags = self.qtr_sync(db);
         tags.iter().map(|tag|
@@ -312,6 +328,7 @@ impl Tag {
             )).collect()
     }
 
+    /// retrieves all tag names in the database.
     pub fn get_tags(db: &mut db::crud::Database) -> Vec<String> {
         block_on(async {
             db.read(
