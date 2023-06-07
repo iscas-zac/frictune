@@ -61,8 +61,8 @@ impl Tag {
     /// Add a tag to the database.
     /// A series of tag/weight pairs can follow to initialize the mutual link weights.
     /// They will first be added to the database if not existing.
-    /// The tags can be described by a struct implementing [`frictune::MakeTag`]
-    /// trait (either a [`frictune::Tag`] or a [`String`] for now).
+    /// The tags can be described by a struct implementing [`crate::MakeTag`]
+    /// trait (either a [`crate::Tag`] or a [`String`] for now).
     /// 
     /// # Examples
     /// 
@@ -175,13 +175,16 @@ impl Tag {
         }
     }
 
-    /// The function will apply [`frictune::Tag::auto_update_links`]
+    /// The function will apply [`crate::Tag::auto_update_links`]
     /// to all tags. It's async.
     /// 
-    /// > **WARNING**
+    /// **WARNING**
     /// 
     /// The function does not recursively update all links, which
     /// means some links are not properly updated.
+    /// 
+    /// (TODO)
+    /// make it recursively update all links
     pub async fn update_all_links(db: &mut db::crud::Database) {
         for name in match db.read(
             "tags",
@@ -288,7 +291,7 @@ impl Tag {
         }
     }
 
-    /// The sync version of [`frictune::Tag::query_top_related`].
+    /// The sync version of [`crate::Tag::query_top_related`].
     pub fn qtr_sync(&self, db: &mut db::crud::Database) -> Vec<String> {
         block_on(async { self.query_top_related(db).await })
     }
@@ -309,13 +312,13 @@ impl Tag {
         }
     }
 
-    /// The sync version of [`frictune::Tag::query_desc`].
+    /// The sync version of [`crate::Tag::query_desc`].
     pub fn qd_sync(&self, db: &mut db::crud::Database) -> Option<String> {
         block_on(async { self.query_desc(db).await })
     }
 
-    /// A sync function that combines [`frictune::Tag::qtr_sync`] and
-    /// [`frictune::Tag::qd_sync`]. It returns a vec of 3-tuples, of
+    /// A sync function that combines [`crate::Tag::qtr_sync`] and
+    /// [`crate::Tag::qd_sync`]. It returns a vec of 3-tuples, of
     /// tag name, optional tag descriptions and optional weights with
     /// this tag.
     pub fn qtrd(&self, db: &mut db::crud::Database) -> Vec<(String, Option<String>, Option<f32>)> {

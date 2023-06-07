@@ -15,6 +15,5 @@ Cargo.lock
 *.pdb
 
 b.html
-
 tags.db
-.vscode/settings.json
+.vscode/
